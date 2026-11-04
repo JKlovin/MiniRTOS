@@ -15,9 +15,9 @@ void MiniCreateTask( TaskFunction_t pxTaskCode,
                      const char * const pcName,
                      const uint32_t uxStackDepth,
                      unsigned long uxPriority);
-void Task_StartSchedulaer(void);
-
-
+void Task_StartScheduler(void);
+void Get_CurrentTCB(void);
+void MiniRTOS_delay(uint32_t delay_time);
 
 
 

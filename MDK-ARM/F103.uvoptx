@@ -154,19 +154,67 @@
           <Type>0</Type>
           <LineNumber>128</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>0</Address>
+          <Address>134223498</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>0</BreakIfRCount>
+          <BreakIfRCount>1</BreakIfRCount>
           <Filename>../Core/Src/main.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression></Expression>
+          <Expression>\\F103\../Core/Src/main.c\128</Expression>
         </Bp>
         <Bp>
           <Number>1</Number>
+          <Type>0</Type>
+          <LineNumber>166</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>134222442</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>1</BreakIfRCount>
+          <Filename>..\MiniRTOS\minirtos_api.c</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression>\\F103\../MiniRTOS/minirtos_api.c\166</Expression>
+        </Bp>
+        <Bp>
+          <Number>2</Number>
+          <Type>0</Type>
+          <LineNumber>69</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>134221384</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>1</BreakIfRCount>
+          <Filename>../Core/Src/main.c</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression>\\F103\../Core/Src/main.c\69</Expression>
+        </Bp>
+        <Bp>
+          <Number>3</Number>
+          <Type>0</Type>
+          <LineNumber>208</LineNumber>
+          <EnabledFlag>1</EnabledFlag>
+          <Address>134222004</Address>
+          <ByteObject>0</ByteObject>
+          <HtxType>0</HtxType>
+          <ManyObjects>0</ManyObjects>
+          <SizeOfObject>0</SizeOfObject>
+          <BreakByAccess>0</BreakByAccess>
+          <BreakIfRCount>1</BreakIfRCount>
+          <Filename>../Core/Src/stm32f1xx_it.c</Filename>
+          <ExecCommand></ExecCommand>
+          <Expression>\\F103\../Core/Src/stm32f1xx_it.c\208</Expression>
+        </Bp>
+        <Bp>
+          <Number>4</Number>
           <Type>0</Type>
           <LineNumber>110</LineNumber>
           <EnabledFlag>1</EnabledFlag>
@@ -177,7 +225,7 @@
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>0</BreakIfRCount>
-          <Filename>../Core/Src/main.c</Filename>
+          <Filename>startup_stm32f103xb.s</Filename>
           <ExecCommand></ExecCommand>
           <Expression></Expression>
         </Bp>
@@ -552,7 +600,7 @@
       <GroupNumber>5</GroupNumber>
       <FileNumber>24</FileNumber>
       <FileType>1</FileType>
-      <tvExp>1</tvExp>
+      <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
       <PathWithFileName>..\MiniRTOS\minirtos_api.c</PathWithFileName>

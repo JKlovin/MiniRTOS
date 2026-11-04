@@ -48,7 +48,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+extern volatile uint32_t System_Tick;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,22 +59,132 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void LED_Handle(void *arg)
+void LED1_Handle(void *arg)
 {
-
   while (1)
   {
-    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-    HAL_Delay(500);
+    MiniRTOS_delay(5000);
+    printf("in Led_1_task\r\n");
   }
 }
-
+void LED2_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_2_task\r\n");
+  }
+}
+void LED3_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_3_task\r\n");
+  }
+}
+void LED4_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_4_task\r\n");
+  }
+}
+void LED5_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_5_task\r\n");
+  }
+}
+void LED6_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_6_task\r\n");
+  }
+}
+void LED7_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_7_task\r\n");
+  }
+}
+void LED8_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_8_task\r\n");
+  }
+}
+void LED9_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_9_task\r\n");
+  }
+}
+void LED10_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_10_task\r\n");
+  }
+}
+void LED11_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_11_task\r\n");
+  }
+}
+void LED12_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_12_task\r\n");
+  }
+}
+void LED13_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_13_task\r\n");
+  }
+}
+void LED14_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_14_task\r\n");
+  }
+}
+void LED15_Handle(void *arg)
+{
+  while (1)
+  {
+    MiniRTOS_delay(5000);
+    printf("in Led_15_task\r\n");
+  }
+}
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
+  * @brief  The application entry point.
+  * @retval int
+  */
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -107,17 +217,24 @@ int main(void)
   printf("MiniRTOS Init OK!\r\n");
   MiniRTOS_Init();
 
-  MiniCreateTask(LED_Handle, "Task_A", 128, 2);
-  MiniCreateTask(LED_Handle, "Task_B", 128, 2);
-  MiniCreateTask(LED_Handle, "Task_C", 128, 4);
-  MiniCreateTask(LED_Handle, "Task_D", 128, 2);
-  MiniCreateTask(LED_Handle, "Task_E", 128, 0); 
-  MiniCreateTask(LED_Handle, "Task_B", 128, 2);
-  MiniCreateTask(LED_Handle, "Task_C", 128, 4);
-  MiniCreateTask(LED_Handle, "Task_D", 128, 2);
-  MiniCreateTask(LED_Handle, "Task_E", 128, 0);
+  MiniCreateTask(LED1_Handle, "Task_1", 128, 0);
+  MiniCreateTask(LED2_Handle, "Task_2", 128, 0);
+  MiniCreateTask(LED3_Handle, "Task_3", 128, 0);
+  // MiniCreateTask(LED4_Handle, "Task_4", 128, 1);
+  // MiniCreateTask(LED5_Handle, "Task_5", 128, 1);
+  // MiniCreateTask(LED6_Handle, "Task_6", 128, 1);
+  MiniCreateTask(LED7_Handle, "Task_7", 128, 2);
+  MiniCreateTask(LED8_Handle, "Task_8", 128, 2);
+  MiniCreateTask(LED9_Handle, "Task_9", 128, 2);
+  // MiniCreateTask(LED10_Handle, "Task_10", 128, 3);
+  // MiniCreateTask(LED11_Handle, "Task_11", 128, 3);
+  // MiniCreateTask(LED12_Handle, "Task_12", 128, 3);
+  MiniCreateTask(LED13_Handle, "Task_13", 128, 4);
+  MiniCreateTask(LED14_Handle, "Task_14", 128, 4);
+  MiniCreateTask(LED15_Handle, "Task_15", 128, 4);
 
-  Task_StartSchedulaer();
+
+  Task_StartScheduler();
 
 
   /* USER CODE END 2 */
@@ -135,17 +252,17 @@ int main(void)
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
+  * @brief System Clock Configuration
+  * @retval None
+  */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
+  * in the RCC_OscInitTypeDef structure.
+  */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
@@ -158,8 +275,9 @@ void SystemClock_Config(void)
     Error_Handler();
   }
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -176,20 +294,19 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
- * @brief  Period elapsed callback in non blocking mode
- * @note   This function is called  when TIM4 interrupt took place, inside
- * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
- * a global variable "uwTick" used as application time base.
- * @param  htim : TIM handle
- * @retval None
- */
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM4 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM4)
-  {
+  if (htim->Instance == TIM4) {
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
@@ -198,9 +315,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -212,14 +329,14 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */

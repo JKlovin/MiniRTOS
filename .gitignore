@@ -1,2 +1,55 @@
 
-**/keil-assistant.log
+# ==========================================
+# MiniRTOS - Git Ignore
+# STM32CubeMX + Keil MDK-ARM + VS Code
+# ==========================================
+
+# 1. Keil MDK compiled outputs
+**/Objects/
+**/Listings/
+
+*.o
+*.obj
+*.d
+*.crf
+*.lnp
+*.axf
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+*.dep
+*.build_log.htm
+
+# 2. Keil user-specific configurations
+*.uvopt
+*.uvoptx
+*.uvgui.*
+*.uvguix
+*.uvguix.*
+
+# 3. VS Code local configurations
+**/.vscode/
+
+# 4. Log and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.swp
+*.swo
+*~
+
+# 5. Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 6. Python cache (optional scripts)
+__pycache__/
+*.pyc
+
+
