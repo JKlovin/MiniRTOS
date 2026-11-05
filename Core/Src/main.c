@@ -48,6 +48,16 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+volatile uint32_t A_Start = 0;
+volatile uint32_t A_Wake = 0;
+volatile uint32_t A_Elapsed = 0;
+volatile uint32_t A_Done = 0;
+
+volatile uint32_t B_Start = 0;
+volatile uint32_t B_Wake = 0;
+volatile uint32_t B_Elapsed = 0;
+volatile uint32_t B_Done = 0;
+
 extern volatile uint32_t System_Tick;
 /* USER CODE END PV */
 
@@ -59,126 +69,54 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void LED1_Handle(void *arg)
+void IDLE_Handle(void *arg)
 {
   while (1)
   {
-    MiniRTOS_delay(5000);
-    printf("in Led_1_task\r\n");
+    __WFI();
   }
 }
 void LED2_Handle(void *arg)
 {
   while (1)
   {
-    MiniRTOS_delay(5000);
     printf("in Led_2_task\r\n");
+    MiniRTOS_delay(1000);
   }
 }
 void LED3_Handle(void *arg)
 {
   while (1)
   {
-    MiniRTOS_delay(5000);
     printf("in Led_3_task\r\n");
+    MiniRTOS_delay(1500);
   }
 }
 void LED4_Handle(void *arg)
 {
   while (1)
   {
-    MiniRTOS_delay(5000);
     printf("in Led_4_task\r\n");
+    MiniRTOS_delay(2000);
   }
 }
 void LED5_Handle(void *arg)
 {
   while (1)
   {
-    MiniRTOS_delay(5000);
     printf("in Led_5_task\r\n");
+    MiniRTOS_delay(2500);
   }
 }
 void LED6_Handle(void *arg)
 {
   while (1)
   {
-    MiniRTOS_delay(5000);
-    printf("in Led_6_task\r\n");
+    HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+    MiniRTOS_delay(3000);
   }
 }
-void LED7_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_7_task\r\n");
-  }
-}
-void LED8_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_8_task\r\n");
-  }
-}
-void LED9_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_9_task\r\n");
-  }
-}
-void LED10_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_10_task\r\n");
-  }
-}
-void LED11_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_11_task\r\n");
-  }
-}
-void LED12_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_12_task\r\n");
-  }
-}
-void LED13_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_13_task\r\n");
-  }
-}
-void LED14_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_14_task\r\n");
-  }
-}
-void LED15_Handle(void *arg)
-{
-  while (1)
-  {
-    MiniRTOS_delay(5000);
-    printf("in Led_15_task\r\n");
-  }
-}
+
 /* USER CODE END 0 */
 
 /**
@@ -217,25 +155,14 @@ int main(void)
   printf("MiniRTOS Init OK!\r\n");
   MiniRTOS_Init();
 
-  MiniCreateTask(LED1_Handle, "Task_1", 128, 0);
-  MiniCreateTask(LED2_Handle, "Task_2", 128, 0);
-  MiniCreateTask(LED3_Handle, "Task_3", 128, 0);
-  // MiniCreateTask(LED4_Handle, "Task_4", 128, 1);
-  // MiniCreateTask(LED5_Handle, "Task_5", 128, 1);
-  // MiniCreateTask(LED6_Handle, "Task_6", 128, 1);
-  MiniCreateTask(LED7_Handle, "Task_7", 128, 2);
-  MiniCreateTask(LED8_Handle, "Task_8", 128, 2);
-  MiniCreateTask(LED9_Handle, "Task_9", 128, 2);
-  // MiniCreateTask(LED10_Handle, "Task_10", 128, 3);
-  // MiniCreateTask(LED11_Handle, "Task_11", 128, 3);
-  // MiniCreateTask(LED12_Handle, "Task_12", 128, 3);
-  MiniCreateTask(LED13_Handle, "Task_13", 128, 4);
-  MiniCreateTask(LED14_Handle, "Task_14", 128, 4);
-  MiniCreateTask(LED15_Handle, "Task_15", 128, 4);
-
+  MiniCreateTask(IDLE_Handle, "Idle_task",128, 0);
+	MiniCreateTask(LED2_Handle, "Task_2",   128, 1);
+	MiniCreateTask(LED3_Handle, "Task_3",   128, 2);
+  MiniCreateTask(LED4_Handle, "Task_4",		128, 3);
+  MiniCreateTask(LED5_Handle, "Task_5",		128, 4);
+  MiniCreateTask(LED6_Handle, "Task_6",		128, 4);
 
   Task_StartScheduler();
-
 
   /* USER CODE END 2 */
 

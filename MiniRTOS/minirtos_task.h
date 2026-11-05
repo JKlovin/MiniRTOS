@@ -38,7 +38,6 @@ struct List
 
     /* 列表的结束项 */
     ListItem_t xListEnd;
-
 };
 
 /* 任务结构体 TCB */
@@ -55,11 +54,10 @@ typedef struct MiniTCB
     uint32_t uxPriority;
 
     /* 任务名称 */
-    char pcName[32]; 
+    char pcName[32];
 
     /* 任务状态列表项 */
-    ListItem_t xStateListItem;
-
+    ListItem_t StateListItem;
 
 } MiniTCB_t;
 

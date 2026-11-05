@@ -44,10 +44,12 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-volatile uint32_t System_Tick = 0;
+extern volatile uint32_t		System_Tick				;
+extern MiniTCB_t *volatile	CurrentTCB				;
+extern volatile uint32_t		MiniRTOS_Running	;
+extern List_t								*CurrentWaitList 	;
+extern List_t								*OverflowWaitList	;
 
-extern MiniTCB_t *volatile CurrentTCB;
-extern volatile uint32_t MiniRTOS_Running;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -71,8 +73,8 @@ extern TIM_HandleTypeDef htim4;
 /*           Cortex-M3 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
 /**
- * @brief This function handles Non maskable interrupt.
- */
+  * @brief This function handles Non maskable interrupt.
+  */
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
@@ -86,8 +88,8 @@ void NMI_Handler(void)
 }
 
 /**
- * @brief This function handles Hard fault interrupt.
- */
+  * @brief This function handles Hard fault interrupt.
+  */
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
@@ -101,8 +103,8 @@ void HardFault_Handler(void)
 }
 
 /**
- * @brief This function handles Memory management fault.
- */
+  * @brief This function handles Memory management fault.
+  */
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
@@ -116,8 +118,8 @@ void MemManage_Handler(void)
 }
 
 /**
- * @brief This function handles Prefetch fault, memory access fault.
- */
+  * @brief This function handles Prefetch fault, memory access fault.
+  */
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
@@ -131,8 +133,8 @@ void BusFault_Handler(void)
 }
 
 /**
- * @brief This function handles Undefined instruction or illegal state.
- */
+  * @brief This function handles Undefined instruction or illegal state.
+  */
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
@@ -146,42 +148,76 @@ void UsageFault_Handler(void)
 }
 
 /**
- * @brief This function handles System service call via SWI instruction.
- */
-__asm void SVC_Handler(void)
+  * @brief This function handles System service call via SWI instruction.
+  */
+void __asm SVC_Handler(void)
 {
   /* USER CODE BEGIN SVCall_IRQn 0 */
   extern CurrentTCB;
   extern MiniRTOS_Running;
 
-  /* 8å­—èŠ‚å¯¹é½ */
-  PRESERVE8
+	/* ±£Ö¤8×Ö½ÚÕ»¶ÔÆë */
+	PRESERVE8
 
-  /* èŽ·å–å½“å‰ä»»åŠ¡æ ˆé¡¶æŒ‡é’ˆ*/
-  ldr r3, = CurrentTCB
-  ldr r1, [ r3 ]
-  ldr r0, [ r1 ]
+	/* -------------------------------------------- */
+	/* »ñÈ¡µÚÒ»¸öÈÎÎñµÄÕ»¶¥Ö¸Õë */
+	/* -------------------------------------------- */
 
-  /* è½¯ä»¶å‡ºæ ˆ */
-  ldmia r0 !, { r4 - r11 }
+	/* »ñÈ¡ CurrentTCB È«¾ÖÖ¸Õë±äÁ¿µÄµØÖ· */
+	ldr r3, =CurrentTCB
 
-  /* è½¯ä»¶å‡ºæ ˆåŽï¼Œå‰©ä¸‹çš„ä»»åŠ¡æ ˆéœ€è¦ç¡¬ä»¶å‡ºæ ˆï¼Œè®¾ç½®PSPä¸ºåŽç»­ç”¨æˆ·æŒ‡é’ˆ*/
-  msr psp, r0
-  /* æŒ‡ä»¤åŒæ­¥*/
-  isb
+	/* ¶ÁÈ¡ CurrentTCB£¬»ñÈ¡µ±Ç°ÈÎÎñ TCB µØÖ· */
+	ldr r1, [r3]
 
-  /* è®¾ç½®è°ƒåº¦å™¨æ ‡å¿—ä½ï¼Œå¯åŠ¨ */
-  ldr r2, = MiniRTOS_Running
-  mov r0, #1
-  str r0, [r2]
+	/* ¶ÁÈ¡ TCB µÚÒ»¸ö³ÉÔ± pxTopOfStack */
+	/* r0 ±£´æµ±Ç°ÈÎÎñµÄÕ»¶¥Ö¸Õë */
+	ldr r0, [r1]
 
-  /* å¼€å¯ä¸­æ–­ */
-  mov r0, # 0
-  msr basepri, r0
+	/* -------------------------------------------- */
+	/* »Ö¸´µÚÒ»¸öÈÎÎñµÄÈí¼þ±£´æ¼Ä´æÆ÷ */
+	/* -------------------------------------------- */
 
-  /* è®¾ç½®LRå¯„å­˜å™¨ï¼Œé…ç½®PSPä¸ºåŽç»­ä½¿ç”¨æŒ‡é’ˆ */
-  orr r14, # 0xd
-  bx r14
+	/* ´ÓÈÎÎñÕ»ÖÐ»Ö¸´ R4-R11 */
+	/* Ã¿»Ö¸´Ò»¸ö¼Ä´æÆ÷£¬r0 Ö¸Õë×Ô¶¯µÝÔö */
+	ldmia r0!, {r4-r11}
+
+	/* ÉèÖÃ PSP£¬Ö¸ÏòÓ²¼þÒì³£Õ»Ö¡µÄÆðÊ¼Î»ÖÃ */
+	/* ºóÐøÒì³£·µ»ØÊ±ÓÉÓ²¼þ×Ô¶¯»Ö¸´ R0-R3¡¢R12¡¢LR¡¢PC¡¢xPSR */
+	msr psp, r0
+
+	/* Ö¸ÁîÍ¬²½£¬È·±£ PSP ¸üÐÂÉúÐ§ */
+	isb
+
+	/* -------------------------------------------- */
+	/* ÉèÖÃµ÷¶ÈÆ÷ÔËÐÐ±êÖ¾ */
+	/* -------------------------------------------- */
+
+	/* »ñÈ¡ MiniRTOS_Running ±äÁ¿µØÖ· */
+	ldr r2, =MiniRTOS_Running
+
+	/* ÉèÖÃÔËÐÐ±êÖ¾Îª1 */
+	mov r0, #1
+	str r0, [r2]
+
+	/* -------------------------------------------- */
+	/* ÔÊÐí±» BASEPRI ÆÁ±ÎµÄÖÐ¶Ï */
+	/* -------------------------------------------- */
+
+	/* BASEPRI = 0£¬È¡Ïû BASEPRI ÖÐ¶ÏÆÁ±Î */
+	mov r0, #0
+	msr basepri, r0
+
+	/* -------------------------------------------- */
+	/* Òì³£·µ»Ø£¬ÕýÊ½Æô¶¯µÚÒ»¸öÈÎÎñ */
+	/* -------------------------------------------- */
+
+	/* ÉèÖÃ EXC_RETURN = 0xFFFFFFFD */
+	/* ·µ»ØÏß³ÌÄ£Ê½£¬Ê¹ÓÃ PSP£¬»Ö¸´ÈÎÎñÉÏÏÂÎÄ */
+	orr r14, #0xd
+
+	/* Òì³£·µ»Ø£¬Ó²¼þ×Ô¶¯»Ö¸´Ê£Óà¼Ä´æÆ÷ */
+	/* PC »Ö¸´ÎªÈÎÎñÈë¿Úº¯ÊýµØÖ·£¬¿ªÊ¼Ö´ÐÐÈÎÎñ */
+	bx r14
 
   /* USER CODE END SVCall_IRQn 0 */
   /* USER CODE BEGIN SVCall_IRQn 1 */
@@ -190,8 +226,8 @@ __asm void SVC_Handler(void)
 }
 
 /**
- * @brief This function handles Debug monitor.
- */
+  * @brief This function handles Debug monitor.
+  */
 void DebugMon_Handler(void)
 {
   /* USER CODE BEGIN DebugMonitor_IRQn 0 */
@@ -203,57 +239,105 @@ void DebugMon_Handler(void)
 }
 
 /**
- * @brief This function handles Pendable request for system service.
- */
-__asm void PendSV_Handler(void)
+  * @brief This function handles Pendable request for system service.
+  */
+void __asm PendSV_Handler(void)
 {
   /* USER CODE BEGIN PendSV_IRQn 0 */
   extern CurrentTCB;
   extern Get_CurrentTCB;
 
-  PRESERVE8
+	/* ±£Ö¤8×Ö½ÚÕ»¶ÔÆë */
+	PRESERVE8
 
-  /* å…³é—­ä¸­æ–­ */
-  cpsid i
+	/* -------------------------------------------- */
+	/* ½øÈëÈÎÎñÉÏÏÂÎÄÇÐ»»£¬¹Ø±Õ¿ÉÆÁ±ÎÖÐ¶Ï */
+	/* -------------------------------------------- */
 
-  /* èŽ·å–å½“å‰ä»»åŠ¡æ ˆé¡¶æŒ‡é’ˆ */
-  mrs r0, psp
-  /* æŒ‡ä»¤åŒæ­¥*/
-  isb
+	/* PRIMASK = 1£¬½ûÖ¹¿ÉÆÁ±ÎÖÐ¶Ï */
+	/* ±ÜÃâÇÐ»»¹ý³ÌÖÐ±»ÆÕÍ¨ÖÐ¶Ï´ò¶Ï */
+	cpsid i
 
-  /* èŽ·å–ä¸‹ä¸€æ¬¡ä»»åŠ¡æ ˆé¡¶æŒ‡é’ˆ */
-  ldr r3, =CurrentTCB 
-  ldr r2, [ r3 ]
+	/* -------------------------------------------- */
+	/* ±£´æµ±Ç°ÈÎÎñÉÏÏÂÎÄ */
+	/* -------------------------------------------- */
 
-  /* å¯¹å½“å‰ä»»åŠ¡å †æ ˆè½¯ä»¶å…¥æ ˆ */
-  stmdb r0 !, { r4 - r11 }
-  
-  /* ä¿å­˜å½“å‰ä»»åŠ¡çš„æ ˆé¡¶æŒ‡é’ˆåˆ° r2 å½“å‰ä»»åŠ¡çš„ TCB */
-  str r0, [ r2 ]
+	/* ¶ÁÈ¡ PSP£¬»ñÈ¡µ±Ç°ÈÎÎñµÄÓ²¼þÒì³£Ñ¹Õ»ºóÕ»¶¥ */
+	/* ½øÈë PendSV Ç°Ó²¼þÒÑ×Ô¶¯±£´æ R0-R3¡¢R12¡¢LR¡¢PC¡¢xPSR */
+	mrs r0, psp
 
-  /* ä¿å­˜r3ï¼Œr14å¯„å­˜å™¨ï¼Œé¿å…Get_CurrentTCBå¯¹å…¶è¿›è¡Œä¿®æ”¹ï¼Œ
-      ç‰¹åˆ«æ˜¯å› ä¸ºåŽç»­çš„Get_CurrentTCBä¼šå¯¹R14è¿›è¡Œè¦†ç›– */
-  stmdb sp !, { r3, r14 }
+	/* Ö¸ÁîÍ¬²½ */
+	isb
 
-  /* èŽ·å–å†ä¸‹ä¸€æ¬¡ä»»åŠ¡å—*/
-  bl Get_CurrentTCB
+	/* »ñÈ¡ CurrentTCB È«¾ÖÖ¸Õë±äÁ¿µÄµØÖ· */
+	ldr r3, =CurrentTCB
 
-  /* å‡ºæ ˆr3ï¼Œr14å¯„å­˜å™¨ */
-  ldmia sp !, { r3, r14 }
+	/* »ñÈ¡µ±Ç°ÔËÐÐÈÎÎñµÄ TCB µØÖ· */
+	ldr r2, [r3]
 
-  ldr r1, [ r3 ]
-  ldr r0, [ r1 ]
-  ldmia r0 !, { r4 - r11 }
+	/* ½« R4-R11 Ñ¹Èëµ±Ç°ÈÎÎñÕ» */
+	/* STM32 Õ»ÏòµÍµØÖ·Ôö³¤£¬r0 ×Ô¶¯µÝ¼õ */
+	stmdb r0!, {r4-r11}
 
-  /* æ›´æ–°PSP */
-  msr psp, r0
-  isb
-  
-  /* æ¢å¤ä¸­æ–­ */
-  cpsie i
+	/* ½«Èí¼þÑ¹Õ»ºóµÄÕ»¶¥µØÖ·±£´æµ½µ±Ç° TCB */
+	/* TCB µÄµÚÒ»¸ö³ÉÔ±Îª pxTopOfStack */
+	str r0, [r2]
 
-  bx r14
-  nop
+	/* -------------------------------------------- */
+	/* ±£´æÒì³£´¦Àíº¯ÊýÐèÒªÊ¹ÓÃµÄ¼Ä´æÆ÷ */
+	/* -------------------------------------------- */
+
+	/* Ê¹ÓÃ MSP ±£´æ r3 ºÍ LR(EXC_RETURN) */
+	/* ·ÀÖ¹µ÷ÓÃ C º¯ÊýÊ±¼Ä´æÆ÷±»¸²¸Ç */
+	stmdb sp!, {r3,r14}
+
+	/* -------------------------------------------- */
+	/* Ö´ÐÐÈÎÎñµ÷¶È£¬Ñ¡ÔñÏÂÒ»¸öÈÎÎñ */
+	/* -------------------------------------------- */
+
+	/* µ÷ÓÃ C ÓïÑÔµ÷¶Èº¯Êý */
+	/* ¼ì²é×èÈûÈÎÎñÊÇ·ñµ½ÆÚ£¬²¢Ñ¡Ôñ×î¸ßÓÅÏÈ¼¶¾ÍÐ÷ÈÎÎñ */
+	/* µ÷¶È½á¹ûÍ¨¹ý¸üÐÂ CurrentTCB ·µ»Ø */
+	bl Get_CurrentTCB
+
+	/* »Ö¸´Ö®Ç°±£´æµÄ r3 ºÍ LR */
+	ldmia sp!, {r3,r14}
+
+	/* -------------------------------------------- */
+	/* »Ö¸´ÏÂÒ»¸öÈÎÎñÉÏÏÂÎÄ */
+	/* -------------------------------------------- */
+
+	/* Í¨¹ý CurrentTCB »ñÈ¡ÏÂÒ»ÈÎÎñµÄ TCB µØÖ· */
+	ldr r1, [r3]
+
+	/* ¶ÁÈ¡ÏÂÒ»ÈÎÎñ±£´æµÄÕ»¶¥Ö¸Õë pxTopOfStack */
+	ldr r0, [r1]
+
+	/* ´ÓÏÂÒ»ÈÎÎñÕ»»Ö¸´ R4-R11 */
+	/* r0 ×Ô¶¯µÝÔö£¬Ö¸ÏòÊ£ÓàÓ²¼þÒì³£Õ»Ö¡ */
+	ldmia r0!, {r4-r11}
+
+	/* ½« PSP ¸üÐÂÎªÏÂÒ»ÈÎÎñµÄÕ»¶¥Ö¸Õë */
+	msr psp, r0
+
+	/* Ö¸ÁîÍ¬²½£¬È·±£ PSP ¸üÐÂÉúÐ§ */
+	isb
+
+	/* -------------------------------------------- */
+	/* Íê³ÉÈÎÎñÇÐ»»£¬»Ö¸´ÖÐ¶Ï */
+	/* -------------------------------------------- */
+
+	/* PRIMASK = 0£¬ÔÊÐí¿ÉÆÁ±ÎÖÐ¶Ï */
+	cpsie i
+
+	/* Òì³£·µ»Ø */
+	/* Ó²¼þ´ÓÏÂÒ»ÈÎÎñµÄ PSP Õ»ÖÐ»Ö¸´ */
+	/* R0-R3¡¢R12¡¢LR¡¢PC¡¢xPSR */
+	/* CPU ¿ªÊ¼Ö´ÐÐÏÂÒ»ÈÎÎñ */
+	bx r14
+
+	/* Õ¼Î»Ö¸Áî£¬Õý³£Çé¿öÏÂ²»»áÖ´ÐÐ */
+	nop
 
   /* USER CODE END PendSV_IRQn 0 */
   /* USER CODE BEGIN PendSV_IRQn 1 */
@@ -262,17 +346,29 @@ __asm void PendSV_Handler(void)
 }
 
 /**
- * @brief This function handles System tick timer.
- */
+  * @brief This function handles System tick timer.
+  */
 void SysTick_Handler(void)
 {
   /* USER CODE BEGIN SysTick_IRQn 0 */
-  System_Tick++;
-  if (MiniRTOS_Running == 1)
-  {
-    /* æŒ‚èµ· PendSV å¼‚å¸¸ */
-    SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
-  }
+
+	System_Tick++;
+
+	/* ¼ì²âÏµÍ³ Tick Òç³ö,½»»»Á´±íÖ¸Õë */
+	if(System_Tick == 0)
+	{
+		List_t *Temp = CurrentWaitList;
+		CurrentWaitList = OverflowWaitList;
+		OverflowWaitList = Temp;
+	}
+
+	if(MiniRTOS_Running == 1)
+	{
+		/* ÉèÖÃ PendSV ¹ÒÆð±êÖ¾Î»,ÇëÇóÈÎÎñÉÏÏÂÎÄÇÐ»» */
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+	}
+	
+
   /* USER CODE END SysTick_IRQn 0 */
 
   /* USER CODE BEGIN SysTick_IRQn 1 */
@@ -288,8 +384,8 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
- * @brief This function handles TIM4 global interrupt.
- */
+  * @brief This function handles TIM4 global interrupt.
+  */
 void TIM4_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM4_IRQn 0 */
