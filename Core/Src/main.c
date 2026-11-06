@@ -48,16 +48,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile uint32_t A_Start = 0;
-volatile uint32_t A_Wake = 0;
-volatile uint32_t A_Elapsed = 0;
-volatile uint32_t A_Done = 0;
-
-volatile uint32_t B_Start = 0;
-volatile uint32_t B_Wake = 0;
-volatile uint32_t B_Elapsed = 0;
-volatile uint32_t B_Done = 0;
-
 extern volatile uint32_t System_Tick;
 /* USER CODE END PV */
 
@@ -80,7 +70,10 @@ void LED2_Handle(void *arg)
 {
   while (1)
   {
+		MutexSignal_Take();
     printf("in Led_2_task\r\n");
+		MutexSignal_Release();
+		
     MiniRTOS_delay(1000);
   }
 }
@@ -88,7 +81,10 @@ void LED3_Handle(void *arg)
 {
   while (1)
   {
+		MutexSignal_Take();
     printf("in Led_3_task\r\n");
+		MutexSignal_Release();
+		
     MiniRTOS_delay(1500);
   }
 }
@@ -96,7 +92,10 @@ void LED4_Handle(void *arg)
 {
   while (1)
   {
+		MutexSignal_Take();
     printf("in Led_4_task\r\n");
+		MutexSignal_Release();
+		
     MiniRTOS_delay(2000);
   }
 }
@@ -104,7 +103,10 @@ void LED5_Handle(void *arg)
 {
   while (1)
   {
+		MutexSignal_Take();
     printf("in Led_5_task\r\n");
+		MutexSignal_Release();
+		
     MiniRTOS_delay(2500);
   }
 }
@@ -112,7 +114,11 @@ void LED6_Handle(void *arg)
 {
   while (1)
   {
+		MutexSignal_Take();
+    printf("in Led_6_task\r\n");
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+		MutexSignal_Release();
+
     MiniRTOS_delay(3000);
   }
 }
@@ -155,12 +161,12 @@ int main(void)
   printf("MiniRTOS Init OK!\r\n");
   MiniRTOS_Init();
 
-  MiniCreateTask(IDLE_Handle, "Idle_task",128, 0);
-	MiniCreateTask(LED2_Handle, "Task_2",   128, 1);
-	MiniCreateTask(LED3_Handle, "Task_3",   128, 2);
-  MiniCreateTask(LED4_Handle, "Task_4",		128, 3);
-  MiniCreateTask(LED5_Handle, "Task_5",		128, 4);
-  MiniCreateTask(LED6_Handle, "Task_6",		128, 4);
+  MiniCreateTask(IDLE_Handle, "Idle_task",64, 0);
+	MiniCreateTask(LED2_Handle, "Task_2",   64, 1);
+	MiniCreateTask(LED3_Handle, "Task_3",   64, 2);
+  MiniCreateTask(LED4_Handle, "Task_4",		64, 3);
+  MiniCreateTask(LED5_Handle, "Task_5",		64, 4);
+  MiniCreateTask(LED6_Handle, "Task_6",		64, 4);
 
   Task_StartScheduler();
 

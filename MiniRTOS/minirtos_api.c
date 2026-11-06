@@ -6,19 +6,39 @@ MiniTCB_t *volatile CurrentTCB = NULL;
 volatile uint32_t MiniRTOS_Running = 0;
 volatile uint32_t System_Tick = 0;
 
+/* 阻塞列表定义项 */
 List_t Task_ReadyList[5];
 List_t Task_WaitList_1;
 List_t Task_WaitList_2;
 List_t *CurrentWaitList = &Task_WaitList_1;
 List_t *OverflowWaitList = &Task_WaitList_2;
 
-void ListInit(List_t *List);
-void Task_AddReadyList(MiniTCB_t *TCB);
-static void TaskInit_LRerror(void);
-static __asm void StartFirstTask(void);
-void Get_CurrentTCB(void);
-static void List_ItemRemove(MiniTCB_t *TCB);
 void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time);
+void MiniRTOS_WakeUntil(uint32_t Systick_Now);
+
+/* 互斥锁定义项 */
+MiniMutex_t Task_MutexSignal;
+
+void MiniRTOS_Wakeup_MutexWaitTask(void);
+
+/* 信号量定义项 */
+MiniSemaphore_t Task_SemaphoreSignal;
+
+
+/*-------------------------------------*/
+/*-------------------------------------*/
+/*-------------------------------------*/
+static __asm void StartFirstTask(void);
+static void TaskInit_LRerror(void);
+
+void ListInit(List_t *List);
+void Get_CurrentTCB(void);
+void Task_AddReadyList(MiniTCB_t *TCB);
+static void List_ItemRemove(MiniTCB_t *TCB);
+/*-------------------------------------*/
+/*-------------------------------------*/
+/*-------------------------------------*/
+
 
 /* 系统初始化函数 */
 void MiniRTOS_Init(void)
@@ -32,6 +52,16 @@ void MiniRTOS_Init(void)
 	/* 阻塞链表初始化 */
 	ListInit(&Task_WaitList_1);
 	ListInit(&Task_WaitList_2);
+	
+	/* 互斥锁初始化 */
+	Task_MutexSignal.Owner=NULL;
+	ListInit(&Task_MutexSignal.WaitList);
+	
+	/* 信号量初始化 */
+	Task_SemaphoreSignal.uxCount=0;
+	Task_SemaphoreSignal.uxMaxCount=1;
+	ListInit(&Task_SemaphoreSignal.WaitList);
+	
 }
 
 /* 任务创建函数 */
@@ -187,10 +217,12 @@ void Task_StartScheduler(void)
 
 	/* Systick滴答定时器，时钟配置 */
 	HAL_SYSTICK_Config(72000000 / 1000);
-
+  System_Tick = 0;
+	
 	Get_CurrentTCB();
 	/* 开启第一个任务 */
 	StartFirstTask();
+	
 }
 
 static __asm void StartFirstTask(void)
@@ -229,33 +261,13 @@ static void TaskInit_LRerror(void)
 void Get_CurrentTCB(void)
 {
 	int i;
-	ListItem_t *Index;
-	MiniTCB_t *TCB;
 	List_t *List;
 
-	/* 检查阻塞任务是否到期 */
-	List = CurrentWaitList;
-
-	while (List->NumberOfItems > 0)
-	{
-		/* 取得最早到期的任务 */
-		Index = List->xListEnd.pxNext;
-
-		/* 如果还没有到期，直接结束 */
-		if (Index->pxValue > System_Tick)
-		{
-			break;
-		}
-
-		/* 先保存待唤醒任务的 TCB */
-		TCB = (MiniTCB_t *)Index->pxOwner;
-
-		/* 从阻塞链表中移除 */
-		List_ItemRemove(TCB);
-
-		/* 加入就绪链表 */
-		Task_AddReadyList(TCB);
-	}
+  /* 唤醒当前时间之前已经到期的任务 */
+  MiniRTOS_WakeUntil(System_Tick);
+	
+	/* 唤醒等待互斥锁的任务 */
+	MiniRTOS_Wakeup_MutexWaitTask();
 
 	/* 查找最高优先级就绪任务 */
 	for (i = 4; i >= 0; i--)
@@ -402,3 +414,155 @@ void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
 
 	List->NumberOfItems++;
 }
+
+void Task_AddMutexWaitList(MiniTCB_t *TCB)
+{
+	/* 列表节点归属哪一个TCB */
+	TCB->StateListItem.pxOwner = TCB;
+
+	/* 列表节点数值设置 */
+	TCB->StateListItem.pxValue = TCB->uxPriority;
+
+	/* 列表节点归属哪一个列表 */
+	TCB->StateListItem.pxContainer = &Task_MutexSignal.WaitList;
+
+	/* 如果列表中没有节点 */
+	if (Task_MutexSignal.WaitList.NumberOfItems == 0)
+	{
+		Task_MutexSignal.WaitList.xListEnd.pxPrevious = &TCB->StateListItem;
+		Task_MutexSignal.WaitList.xListEnd.pxNext = &TCB->StateListItem;
+		TCB->StateListItem.pxNext = &Task_MutexSignal.WaitList.xListEnd;
+		TCB->StateListItem.pxPrevious = &Task_MutexSignal.WaitList.xListEnd;
+
+		Task_MutexSignal.WaitList.xIndex = &TCB->StateListItem;
+	}
+	else
+	{
+		TCB->StateListItem.pxNext = &Task_MutexSignal.WaitList.xListEnd;
+		TCB->StateListItem.pxPrevious = Task_MutexSignal.WaitList.xListEnd.pxPrevious;
+		TCB->StateListItem.pxPrevious->pxNext = &TCB->StateListItem;
+		Task_MutexSignal.WaitList.xListEnd.pxPrevious = &TCB->StateListItem;
+	}
+
+	/* 列表节点数增加 */
+	Task_MutexSignal.WaitList.NumberOfItems++;
+}
+
+/* 获取互斥锁 */
+void MutexSignal_Take(void)
+{
+	uint32_t primask;
+
+	/* 保存中断状态 */
+	primask = __get_PRIMASK();
+
+	/* 进入临界区 */
+	__disable_irq();
+
+	if(Task_MutexSignal.Owner==NULL)
+	{
+		Task_MutexSignal.Owner=CurrentTCB;
+	}else
+	{
+		/* 从就绪链表删除 */
+		List_ItemRemove(CurrentTCB);
+		
+		/* 加入互斥锁阻塞链表 */
+		Task_AddMutexWaitList(CurrentTCB);
+
+		/* 请求任务调度 */
+		if (MiniRTOS_Running == 1)
+		{
+			SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+		}
+	}
+	
+	__DSB();
+
+	/* 恢复原来的中断状态 */
+	__set_PRIMASK(primask);
+	__ISB();	
+}
+
+/* 释放互斥锁 */
+void MutexSignal_Release(void)
+{
+	uint32_t primask;
+
+	/* 保存中断状态 */
+	primask = __get_PRIMASK();
+
+	/* 进入临界区 */
+	__disable_irq();
+
+	if(Task_MutexSignal.Owner==CurrentTCB)
+	{
+		Task_MutexSignal.Owner=NULL;
+	}
+	
+	__DSB();
+
+	/* 恢复原来的中断状态 */
+	__set_PRIMASK(primask);
+	__ISB();
+
+}
+
+void MiniRTOS_WakeUntil(uint32_t Systick_Now)
+{
+	List_t *List;
+	ListItem_t *Index;
+  MiniTCB_t *TCB;
+	
+		/* 检查阻塞任务是否到期 */
+	List = CurrentWaitList;
+
+	while (List->NumberOfItems > 0)
+	{
+		/* 取得最早到期的任务 */
+		Index = List->xListEnd.pxNext;
+
+		/* 如果还没有到期，直接结束 */
+		if (Index->pxValue > Systick_Now)
+		{
+			break;
+		}
+
+		/* 先保存待唤醒任务的 TCB */
+		TCB = (MiniTCB_t *)Index->pxOwner;
+
+		/* 从阻塞链表中移除 */
+		List_ItemRemove(TCB);
+
+		/* 加入就绪链表 */
+		Task_AddReadyList(TCB);
+	}
+}
+
+void MiniRTOS_Wakeup_MutexWaitTask(void)
+{
+	List_t 			*List	;
+	ListItem_t 	*Index;
+  MiniTCB_t 	*TCB	;
+	
+
+	List=&Task_MutexSignal.WaitList;
+	
+	while(List->NumberOfItems>0)
+	{
+		/* 取得最早等待互斥锁的任务 */
+		Index = List->xListEnd.pxNext;
+		
+		/* 先保存待唤醒任务的 TCB */
+		TCB = (MiniTCB_t *)Index->pxOwner;
+
+		/* 从阻塞链表中移除 */
+		List_ItemRemove(TCB);
+
+		/* 加入就绪链表 */
+		Task_AddReadyList(TCB);
+		
+	}
+
+}
+

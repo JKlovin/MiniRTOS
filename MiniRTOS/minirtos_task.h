@@ -61,4 +61,30 @@ typedef struct MiniTCB
 
 } MiniTCB_t;
 
+/* 互斥锁 */
+typedef struct MiniMutex
+{
+	/* 互斥锁所有者 */
+	MiniTCB_t *Owner;
+	
+	/* 互斥锁等待列表 */
+	List_t WaitList;
+
+} MiniMutex_t;
+
+/* 信号量 */
+typedef struct MiniSemaphore
+{
+	/* 当前可用信号量 */
+	uint16_t uxCount;
+
+	/* 最大可用信号量 */	
+	uint16_t uxMaxCount;
+	
+	/* 信号量等待列表 */
+	List_t WaitList;
+	
+}MiniSemaphore_t;
+
+
 #endif
