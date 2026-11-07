@@ -43,21 +43,24 @@ struct List
 /* 任务结构体 TCB */
 typedef struct MiniTCB
 {
-    /* 任务栈栈顶指针 */
-    /* STM向下生长 */
-    uint32_t *pxTopOfStack;
+	/* 任务栈栈顶指针 */
+	/* STM向下生长 */
+	uint32_t *pxTopOfStack;
 
-    /* 任务栈及地址 */
-    uint32_t *pxStackBase;
+	/* 任务栈及地址 */
+	uint32_t *pxStackBase;
 
-    /* 任务优先级 */
-    uint32_t uxPriority;
+	/* 任务调度优先级 */
+	uint32_t uxPriority;
+	
+	/* 任务原始优先级 */
+	uint32_t uxInitPriority;
 
-    /* 任务名称 */
-    char pcName[32];
+	/* 任务名称 */
+	char pcName[32];
 
-    /* 任务状态列表项 */
-    ListItem_t StateListItem;
+	/* 任务状态列表项 */
+	ListItem_t StateListItem;
 
 } MiniTCB_t;
 

@@ -74,7 +74,7 @@ void LED2_Handle(void *arg)
     printf("in Led_2_task\r\n");
 		MutexSignal_Release();
 		
-    MiniRTOS_delay(1000);
+    MiniRTOS_delay(2000);
   }
 }
 void LED3_Handle(void *arg)
@@ -85,7 +85,7 @@ void LED3_Handle(void *arg)
     printf("in Led_3_task\r\n");
 		MutexSignal_Release();
 		
-    MiniRTOS_delay(1500);
+    MiniRTOS_delay(3600);
   }
 }
 void LED4_Handle(void *arg)
@@ -96,7 +96,7 @@ void LED4_Handle(void *arg)
     printf("in Led_4_task\r\n");
 		MutexSignal_Release();
 		
-    MiniRTOS_delay(2000);
+    MiniRTOS_delay(5800);
   }
 }
 void LED5_Handle(void *arg)
@@ -107,7 +107,7 @@ void LED5_Handle(void *arg)
     printf("in Led_5_task\r\n");
 		MutexSignal_Release();
 		
-    MiniRTOS_delay(2500);
+    MiniRTOS_delay(7900);
   }
 }
 void LED6_Handle(void *arg)
@@ -119,7 +119,7 @@ void LED6_Handle(void *arg)
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 		MutexSignal_Release();
 
-    MiniRTOS_delay(3000);
+    MiniRTOS_delay(11000);
   }
 }
 
