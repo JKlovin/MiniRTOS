@@ -26,7 +26,9 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 
-#include "minirtos_api.h"
+#include "minirtos.h"
+#include "minirtos_task.h"
+#include "minirtos_event.h"
 
 /* USER CODE END Includes */
 
@@ -47,11 +49,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-extern volatile uint32_t System_Tick;
+
+/* 定义互斥锁，信号量，通知任务体*/
 MiniMutex_t 		Task_MutexSignal_1;
 MiniSemaphore_t Task_SemaphoreSignal_1;
+MiniTCB_t *Notify_TCB_1;
 
-MiniTCB_t *TCB_Task3;
+extern volatile uint32_t System_Tick;
 
 /* USER CODE END PV */
 
@@ -122,7 +126,7 @@ void LED5_Handle(void *arg)
   {
 		/* 发送任务通知 */
 		value++;
-		Mini_TaskNotify_Sent(TCB_Task3,value);
+		Mini_TaskNotify_Sent(Notify_TCB_1,value);
 		
 		/* 互斥量资源保护 */
 		MutexSignal_Take(&Task_MutexSignal_1);
@@ -188,7 +192,7 @@ int main(void)
 
   MiniCreateTask(IDLE_Handle, "Idle_task",256, 0 );
 	MiniCreateTask(LED2_Handle, "Task_2",   256, 1 );
-	TCB_Task3=MiniCreateTask(LED3_Handle, "Task_3",   256, 2 );
+	Notify_TCB_1=MiniCreateTask(LED3_Handle, "Task_3",   256, 2 );
   MiniCreateTask(LED4_Handle, "Task_4",		256, 3 );
   MiniCreateTask(LED5_Handle, "Task_5",		256, 4 );
   MiniCreateTask(LED6_Handle, "Task_6",		256, 4 );

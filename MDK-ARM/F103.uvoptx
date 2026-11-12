@@ -590,8 +590,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\MiniRTOS\minirtos_task.h</PathWithFileName>
-      <FilenameWithoutPath>minirtos_task.h</FilenameWithoutPath>
+      <PathWithFileName>..\MiniRTOS\minirtos.h</PathWithFileName>
+      <FilenameWithoutPath>minirtos.h</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -602,8 +602,20 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>..\MiniRTOS\minirtos_api.c</PathWithFileName>
-      <FilenameWithoutPath>minirtos_api.c</FilenameWithoutPath>
+      <PathWithFileName>..\MiniRTOS\minirtos_task.c</PathWithFileName>
+      <FilenameWithoutPath>minirtos_task.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+    <File>
+      <GroupNumber>5</GroupNumber>
+      <FileNumber>25</FileNumber>
+      <FileType>1</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>..\MiniRTOS\minirtos_event.c</PathWithFileName>
+      <FilenameWithoutPath>minirtos_event.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>

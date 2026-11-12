@@ -514,14 +514,19 @@
           <GroupName>MiniRTOS</GroupName>
           <Files>
             <File>
-              <FileName>minirtos_task.h</FileName>
+              <FileName>minirtos.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\MiniRTOS\minirtos_task.h</FilePath>
+              <FilePath>..\MiniRTOS\minirtos.h</FilePath>
             </File>
             <File>
-              <FileName>minirtos_api.c</FileName>
+              <FileName>minirtos_task.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\MiniRTOS\minirtos_api.c</FilePath>
+              <FilePath>..\MiniRTOS\minirtos_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>minirtos_event.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\MiniRTOS\minirtos_event.c</FilePath>
             </File>
           </Files>
         </Group>

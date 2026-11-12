@@ -23,7 +23,8 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "minirtos_api.h"
+#include "minirtos.h"
+#include "minirtos_task.h"
 
 /* USER CODE END Includes */
 
