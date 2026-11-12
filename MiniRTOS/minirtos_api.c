@@ -1,4 +1,5 @@
 #include "minirtos_api.h"
+#include "minirtos_task.h"
 #include "main.h"
 /*-------------------------------------*//*-------------------------------------*/
 /*-------------------------------------*/
@@ -18,10 +19,10 @@ static void Mini_EnterCritical(void);
 static void Mini_ExitCritical(void);
 
 /* 就绪列表定义项 */
+static List_t Task_ReadyList[5];
 static void Task_AddList(MiniTCB_t *TCB,uint32_t pxValue,List_t *pxContainer);
 
 /* 阻塞列表定义项 */
-static List_t Task_ReadyList[5];
 static List_t Task_WaitList_1;
 static List_t Task_WaitList_2;
 List_t *CurrentWaitList 	= &Task_WaitList_1;
@@ -31,15 +32,16 @@ static void Task_AddWaitList(MiniTCB_t *TCB,uint32_t delay_time);
 static void MiniRTOS_WakeUntil(uint32_t Systick_Now);
 
 /* 互斥锁定义项 */
-static MiniMutex_t Task_MutexSignal;
+static List_t Mutex_WaitList;
 
-static void MiniRTOS_Wakeup_MutexWaitTask(void);
 static void Task_AddEventWaitList(MiniTCB_t *TCB,uint32_t pxValue,List_t *pxContainer);
+static void Task_WakeupEventWaitList(List_t *pxContainer);
 
 /* 信号量定义项 */
-static MiniSemaphore_t Task_SemaphoreSignal;
+static List_t SemaphoreSignal_WaitList;
 
-static void MiniRTOS_Wakeup_SemaphoreWaitTask(void);
+/* 任务通知定义项 */
+static List_t Notify_WaitList;
 
 /*-------------------------------------*/
 /*-------------------------------------*//*-------------------------------------*/
@@ -57,19 +59,31 @@ void MiniRTOS_Init(void)
 	ListInit(&Task_WaitList_1);
 	ListInit(&Task_WaitList_2);
 	
-	/* 互斥锁初始化 */
-	Task_MutexSignal.Owner=NULL;
-	ListInit(&Task_MutexSignal.WaitList);
+	/* 互斥锁链表初始化 */
+	ListInit(&Mutex_WaitList);
 	
-	/* 信号量初始化 */
-	Task_SemaphoreSignal.uxCount=0;
-	Task_SemaphoreSignal.uxMaxCount=1;
-	ListInit(&Task_SemaphoreSignal.WaitList);
+	/* 信号量链表初始化 */
+	ListInit(&SemaphoreSignal_WaitList);
+	
+	/* 任务通知初始化 */
+	ListInit(&Notify_WaitList);
+}
+
+void Mutex_Init(MiniMutex_t *Task_MutexSignal)
+{
+	Task_MutexSignal->Owner = NULL;
+	
+}
+
+void SemaphoreSignal_Init(MiniSemaphore_t *Task_SemaphoreSignal,uint16_t uxMaxCount)
+{
+	Task_SemaphoreSignal->uxCount			=0		;
+	Task_SemaphoreSignal->uxMaxCount	=uxMaxCount	;
 	
 }
 
 /* 任务创建函数 */
-void MiniCreateTask(TaskFunction_t pxTaskCode,
+MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
 					const char *const pcName,
 					const uint32_t uxStackDepth,
 					unsigned long uxPriority)
@@ -139,9 +153,10 @@ void MiniCreateTask(TaskFunction_t pxTaskCode,
 			if (uxPriority >= 5)
 			{
 				printf("%s Task Priority error\r\n", pcName);
+				
 				free(TCB);
 				free(pxStack);
-				return;
+				return NULL;
 			}
 			
 			TCB->uxInitPriority = uxPriority;
@@ -160,17 +175,26 @@ void MiniCreateTask(TaskFunction_t pxTaskCode,
 
 			/* 加入就绪列表 */
 			Task_AddList(TCB,TCB->uxPriority,&Task_ReadyList[TCB->uxPriority]);
+			
+			/* 任务通知值初始化 */
+			TCB->NotifyValue=NULL;
+			TCB->NotifyState=Notify_Free;
+			
 			printf("%s Task Init sucess\r\n", pcName);
+			
+			return TCB;
 		}
 		else
 		{
 			printf("%s Task Stack error\r\n", pcName);
 			free(TCB);
+			return NULL;
 		}
 	}
 	else
 	{
 		printf("%s TCB Stack error\r\n", pcName);
+		return NULL;
 	}
 }
 
@@ -230,7 +254,7 @@ void Task_StartScheduler(void)
 	Get_CurrentTCB();
 	/* 开启第一个任务 */
 	StartFirstTask();
-	
+
 }
 
 static __asm void StartFirstTask(void)
@@ -392,7 +416,7 @@ static void Task_AddEventWaitList(MiniTCB_t *TCB,uint32_t pxValue,List_t *pxCont
 		Index = Index->pxNext;
 	}
 
-	/* 将新节点插入到 Index 前面 *//* 尾插法 */
+	/* 尾插法 */
 	NewItem->pxNext = Index;
 	NewItem->pxPrevious = Index->pxPrevious;
 	Index->pxPrevious->pxNext = NewItem;
@@ -402,6 +426,41 @@ static void Task_AddEventWaitList(MiniTCB_t *TCB,uint32_t pxValue,List_t *pxCont
 	NewItem->pxContainer = List;
 
 	List->NumberOfItems++;
+
+}
+
+static void Task_WakeupEventWaitList(List_t *pxContainer)
+{
+	List_t 			*List	;
+	ListItem_t 	*Index;
+	MiniTCB_t 	*TCB	;
+	
+	List = pxContainer;
+	
+	if(List->NumberOfItems == 0)
+	{
+		return;
+	}
+	
+	Index = List->xListEnd.pxPrevious;
+	
+	/* 取得优先级最好且最早等待事件(互斥、信号量、任务通知)的任务 */
+	while(Index->pxPrevious != &List->xListEnd)
+	{
+		if(Index->pxPrevious->pxValue != Index->pxValue)
+		{
+			break;
+		}
+
+		Index = Index->pxPrevious;
+	}
+	
+	/* 先保存待唤醒任务的 TCB */
+	TCB = (MiniTCB_t *)Index->pxOwner;
+	/* 从阻塞链表中移除 */
+	List_ItemRemove(TCB);
+	/* 加入就绪链表 */
+	Task_AddList(TCB,TCB->uxPriority,&Task_ReadyList[TCB->uxPriority]);
 
 }
 
@@ -455,7 +514,7 @@ static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
 }
 
 /* 获取互斥锁 */
-void MutexSignal_Take(void)
+void MutexSignal_Take(MiniMutex_t *Task_MutexSignal)
 {
 	List_t *List;
 
@@ -466,17 +525,17 @@ void MutexSignal_Take(void)
 		Mini_EnterCritical();
 
 		/* 互斥锁空闲，直接获取 */
-		if(Task_MutexSignal.Owner == NULL)
+		if(Task_MutexSignal->Owner == NULL)
 		{
-			Task_MutexSignal.Owner = CurrentTCB;
+			Task_MutexSignal->Owner = CurrentTCB;
 			
 			/* 退出临界区 */
 			Mini_ExitCritical();
 			break;
 		}
 		
-		/* 禁止重复获取 */
-		if(Task_MutexSignal.Owner == CurrentTCB)
+		/* 重复获取 */
+		if(Task_MutexSignal->Owner == CurrentTCB)
 		{
 			/* 退出临界区 */
 			Mini_ExitCritical();
@@ -484,23 +543,23 @@ void MutexSignal_Take(void)
 		}
 		
 		/* 没有互斥锁，获取失败 */
-		List = Task_MutexSignal.Owner->StateListItem.pxContainer;
+		List = Task_MutexSignal->Owner->StateListItem.pxContainer;
 		/* 优先级继承，防止优先级反转 */
-		if(Task_MutexSignal.Owner->uxPriority < CurrentTCB->uxPriority)
+		if(Task_MutexSignal->Owner->uxPriority < CurrentTCB->uxPriority)
 		{
 			/* 优先级继承任务处于就绪列表 */
-			if(List == &Task_ReadyList[Task_MutexSignal.Owner->uxPriority])
+			if(List == &Task_ReadyList[Task_MutexSignal->Owner->uxPriority])
 			{
-				List_ItemRemove(Task_MutexSignal.Owner);
-				Task_MutexSignal.Owner->uxPriority=CurrentTCB->uxPriority;
-				Task_AddList(Task_MutexSignal.Owner,Task_MutexSignal.Owner->uxPriority,&Task_ReadyList[Task_MutexSignal.Owner->uxPriority]);
+				List_ItemRemove(Task_MutexSignal->Owner);
+				Task_MutexSignal->Owner->uxPriority=CurrentTCB->uxPriority;
+				Task_AddList(Task_MutexSignal->Owner,Task_MutexSignal->Owner->uxPriority,&Task_ReadyList[Task_MutexSignal->Owner->uxPriority]);
 			}
 			/* 优先级继承任务处于 互斥锁等待 或 信号量等待 列表 */
-			else if(List == &Task_MutexSignal.WaitList || List == &Task_SemaphoreSignal.WaitList)
+			else if(List == &Mutex_WaitList || List == &SemaphoreSignal_WaitList)
 			{
-				Task_MutexSignal.Owner->uxPriority=CurrentTCB->uxPriority;
-				List_ItemRemove(Task_MutexSignal.Owner);
-				Task_AddEventWaitList(Task_MutexSignal.Owner,Task_MutexSignal.Owner->uxPriority,List);
+				Task_MutexSignal->Owner->uxPriority=CurrentTCB->uxPriority;
+				List_ItemRemove(Task_MutexSignal->Owner);
+				Task_AddEventWaitList(Task_MutexSignal->Owner,Task_MutexSignal->Owner->uxPriority,List);
 			}
 			/* 优先级继承任务处于阻塞列表 */
 			else
@@ -512,7 +571,7 @@ void MutexSignal_Take(void)
 		List_ItemRemove(CurrentTCB);
 		
 		/* 加入互斥锁阻塞链表 */
-		Task_AddEventWaitList(CurrentTCB,CurrentTCB->uxPriority,&Task_MutexSignal.WaitList);
+		Task_AddEventWaitList(CurrentTCB,CurrentTCB->uxPriority,&Mutex_WaitList);
 
 		/* 请求任务调度 */
 		if (MiniRTOS_Running == 1)
@@ -530,15 +589,15 @@ void MutexSignal_Take(void)
 }
 
 /* 释放互斥锁 */
-void MutexSignal_Release(void)
+void MutexSignal_Release(MiniMutex_t *Task_MutexSignal)
 {
 	/* 进入临界区 */
 	Mini_EnterCritical();
 
-	if(Task_MutexSignal.Owner == CurrentTCB)
+	if(Task_MutexSignal->Owner == CurrentTCB)
 	{
 		/* 释放互斥锁 */
-		Task_MutexSignal.Owner = NULL;
+		Task_MutexSignal->Owner = NULL;
 		
 		/* 任务优先级还原 */
 		if(CurrentTCB->uxPriority != CurrentTCB->uxInitPriority)
@@ -548,10 +607,10 @@ void MutexSignal_Release(void)
 			Task_AddList(CurrentTCB,CurrentTCB->uxPriority,&Task_ReadyList[CurrentTCB->uxPriority]);
 		}
 
-		if(Task_MutexSignal.WaitList.NumberOfItems > 0)
+		if(Mutex_WaitList.NumberOfItems > 0)
 		{
 			/* 唤醒等待互斥锁的任务 */
-			MiniRTOS_Wakeup_MutexWaitTask();
+			Task_WakeupEventWaitList(&Mutex_WaitList);
 		}
 	}
 	
@@ -597,42 +656,7 @@ static void MiniRTOS_WakeUntil(uint32_t Systick_Now)
 	}
 }
 
-static void MiniRTOS_Wakeup_MutexWaitTask(void)
-{
-	List_t 			*List	;
-	ListItem_t 	*Index;
-  MiniTCB_t 	*TCB	;
-	
-	List=&Task_MutexSignal.WaitList;
-	
-	if(List->NumberOfItems == 0)
-	{
-		return;
-	}
-	
-	Index = List->xListEnd.pxPrevious;
-	
-	/* 取得优先级最好且最早等待互斥锁的任务 */
-	while(Index->pxPrevious != &List->xListEnd)
-	{
-		if(Index->pxPrevious->pxValue != Index->pxValue)
-		{
-			break;
-		}
-
-		Index = Index->pxPrevious;
-	}
-	
-	/* 先保存待唤醒任务的 TCB */
-	TCB = (MiniTCB_t *)Index->pxOwner;
-	/* 从阻塞链表中移除 */
-	List_ItemRemove(TCB);
-	/* 加入就绪链表 */
-	Task_AddList(TCB,TCB->uxPriority,&Task_ReadyList[TCB->uxPriority]);
-
-}
-
-void SemaphoreSignal_Take(void)
+void SemaphoreSignal_Take(MiniSemaphore_t *Task_SemaphoreSignal)
 {
 	while(1)
 	{
@@ -640,16 +664,16 @@ void SemaphoreSignal_Take(void)
 		/* 进入临界区 */
 		Mini_EnterCritical();
 		
-		if(Task_SemaphoreSignal.uxCount > 0)
+		if(Task_SemaphoreSignal->uxCount > 0)
 		{
-			Task_SemaphoreSignal.uxCount--;
+			Task_SemaphoreSignal->uxCount--;
 			__set_PRIMASK(primask);
 			break;
 			
 		}
 		
 		List_ItemRemove(CurrentTCB);
-		Task_AddEventWaitList(CurrentTCB,CurrentTCB->uxPriority,&Task_SemaphoreSignal.WaitList);
+		Task_AddEventWaitList(CurrentTCB,CurrentTCB->uxPriority,&SemaphoreSignal_WaitList);
 	
 		if(MiniRTOS_Running == 1)
 		{
@@ -665,18 +689,18 @@ void SemaphoreSignal_Take(void)
 	return;
 }
 
-void SemaphoreSignal_Release(void)
+void SemaphoreSignal_Release(MiniSemaphore_t *Task_SemaphoreSignal)
 {
 
 	/* 进入临界区 */
 	Mini_EnterCritical();
 	
-	if(Task_SemaphoreSignal.uxCount < Task_SemaphoreSignal.uxMaxCount)
+	if(Task_SemaphoreSignal->uxCount < Task_SemaphoreSignal->uxMaxCount)
 	{
-		Task_SemaphoreSignal.uxCount++;
-		if(Task_SemaphoreSignal.WaitList.NumberOfItems > 0)
+		Task_SemaphoreSignal->uxCount++;
+		if(SemaphoreSignal_WaitList.NumberOfItems > 0)
 		{
-			MiniRTOS_Wakeup_SemaphoreWaitTask();
+			Task_WakeupEventWaitList(&SemaphoreSignal_WaitList);
 
 			if(MiniRTOS_Running == 1)
 			{
@@ -687,41 +711,6 @@ void SemaphoreSignal_Release(void)
 	
 	/* 退出临界区 */
 	Mini_ExitCritical();
-
-}
-
-static void MiniRTOS_Wakeup_SemaphoreWaitTask(void)
-{
-	List_t 			*List	;
-	ListItem_t 	*Index;
-  MiniTCB_t 	*TCB	;
-	
-	List=&Task_SemaphoreSignal.WaitList;
-	
-	if(List->NumberOfItems == 0)
-	{
-		return;
-	}
-	
-	Index = List->xListEnd.pxPrevious;
-	
-	/* 取得优先级最好且最早等待信号量的任务 */
-	while(Index->pxPrevious != &List->xListEnd)
-	{
-		if(Index->pxPrevious->pxValue != Index->pxValue)
-		{
-			break;
-		}
-
-		Index = Index->pxPrevious;
-	}
-	
-	/* 先保存待唤醒任务的 TCB */
-	TCB = (MiniTCB_t *)Index->pxOwner;
-	/* 从阻塞链表中移除 */
-	List_ItemRemove(TCB);
-	/* 加入就绪链表 */
-	Task_AddList(TCB,TCB->uxPriority,&Task_ReadyList[TCB->uxPriority]);
 
 }
 
@@ -743,5 +732,46 @@ static void Mini_ExitCritical(void)
 	__set_PRIMASK(primask);
 	__ISB();
 	
+}
+
+void Mini_TaskNotify_Sent(MiniTCB_t *TCB,uint32_t Value)
+{
+	Mini_EnterCritical();
+
+	TCB->NotifyValue 	= Value	;
+	TCB->NotifyState 	= Notify_Ready;
+	
+	Task_WakeupEventWaitList(&Notify_WaitList);
+		
+	Mini_ExitCritical();
+	
+}
+
+uint32_t Mini_TaskNotify_Get(void)
+{
+	Mini_EnterCritical();
+	
+	while(1)
+	{
+		if(CurrentTCB->NotifyState != Notify_Ready)
+		{
+			List_ItemRemove(CurrentTCB);
+			Task_AddEventWaitList(CurrentTCB,0,&Notify_WaitList);
+			
+			if(MiniRTOS_Running == 1)
+				{
+					SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+					Mini_ExitCritical();
+				}
+		}else
+		{
+			CurrentTCB->NotifyState = Notify_Free;
+			break;
+		}
+	}
+
+	Mini_ExitCritical();
+	
+	return CurrentTCB->NotifyValue;
 }
 

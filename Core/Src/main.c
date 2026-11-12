@@ -26,7 +26,6 @@
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 
-#include "minirtos_task.h"
 #include "minirtos_api.h"
 
 /* USER CODE END Includes */
@@ -49,6 +48,11 @@
 
 /* USER CODE BEGIN PV */
 extern volatile uint32_t System_Tick;
+MiniMutex_t 		Task_MutexSignal_1;
+MiniSemaphore_t Task_SemaphoreSignal_1;
+
+MiniTCB_t *TCB_Task3;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -68,22 +72,32 @@ void IDLE_Handle(void *arg)
 }
 void LED2_Handle(void *arg)
 {
+	
   while (1)
   {
-		MutexSignal_Take();
+		SemaphoreSignal_Take(&Task_SemaphoreSignal_1);
+		
+		/* 互斥量资源保护 */
+		MutexSignal_Take(&Task_MutexSignal_1);
     printf("in Led_2_task\r\n");
-		MutexSignal_Release();
+		MutexSignal_Release(&Task_MutexSignal_1);
 		
     MiniRTOS_delay(2000);
   }
 }
 void LED3_Handle(void *arg)
 {
+	static uint32_t value = 0;
   while (1)
   {
-		MutexSignal_Take();
+		/* 获取任务通知 */
+		value = Mini_TaskNotify_Get();
+		
+		/* 互斥量资源保护 */
+		MutexSignal_Take(&Task_MutexSignal_1);
     printf("in Led_3_task\r\n");
-		MutexSignal_Release();
+		printf("Notify_Value : %d\r\n",value);
+		MutexSignal_Release(&Task_MutexSignal_1);
 		
     MiniRTOS_delay(3600);
   }
@@ -92,20 +106,28 @@ void LED4_Handle(void *arg)
 {
   while (1)
   {
-		MutexSignal_Take();
+		/* 互斥量资源保护 */
+		MutexSignal_Take(&Task_MutexSignal_1);
     printf("in Led_4_task\r\n");
-		MutexSignal_Release();
+		MutexSignal_Release(&Task_MutexSignal_1);
 		
     MiniRTOS_delay(5800);
   }
 }
 void LED5_Handle(void *arg)
 {
+	static uint32_t value = 0;
+	
   while (1)
   {
-		MutexSignal_Take();
+		/* 发送任务通知 */
+		value++;
+		Mini_TaskNotify_Sent(TCB_Task3,value);
+		
+		/* 互斥量资源保护 */
+		MutexSignal_Take(&Task_MutexSignal_1);
     printf("in Led_5_task\r\n");
-		MutexSignal_Release();
+		MutexSignal_Release(&Task_MutexSignal_1);
 		
     MiniRTOS_delay(7900);
   }
@@ -114,10 +136,13 @@ void LED6_Handle(void *arg)
 {
   while (1)
   {
-		MutexSignal_Take();
+		SemaphoreSignal_Release(&Task_SemaphoreSignal_1);
+
+		/* 互斥量资源保护 */
+		MutexSignal_Take(&Task_MutexSignal_1);
     printf("in Led_6_task\r\n");
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-		MutexSignal_Release();
+		MutexSignal_Release(&Task_MutexSignal_1);
 
     MiniRTOS_delay(11000);
   }
@@ -161,13 +186,20 @@ int main(void)
   printf("MiniRTOS Init OK!\r\n");
   MiniRTOS_Init();
 
-  MiniCreateTask(IDLE_Handle, "Idle_task",64, 0);
-	MiniCreateTask(LED2_Handle, "Task_2",   64, 1);
-	MiniCreateTask(LED3_Handle, "Task_3",   64, 2);
-  MiniCreateTask(LED4_Handle, "Task_4",		64, 3);
-  MiniCreateTask(LED5_Handle, "Task_5",		64, 4);
-  MiniCreateTask(LED6_Handle, "Task_6",		64, 4);
-
+  MiniCreateTask(IDLE_Handle, "Idle_task",256, 0 );
+	MiniCreateTask(LED2_Handle, "Task_2",   256, 1 );
+	TCB_Task3=MiniCreateTask(LED3_Handle, "Task_3",   256, 2 );
+  MiniCreateTask(LED4_Handle, "Task_4",		256, 3 );
+  MiniCreateTask(LED5_Handle, "Task_5",		256, 4 );
+  MiniCreateTask(LED6_Handle, "Task_6",		256, 4 );
+	
+	/* 互斥量初始化 */
+	Mutex_Init(&Task_MutexSignal_1);
+	
+	/* 二值信号量初始化 */
+	SemaphoreSignal_Init(&Task_SemaphoreSignal_1,1);
+	
+	/* 开启调度 */
   Task_StartScheduler();
 
   /* USER CODE END 2 */

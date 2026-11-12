@@ -7,6 +7,14 @@ typedef void (*TaskFunction_t)(void *arg);
 
 typedef struct List List_t;
 
+/* 函数返回状态 */
+typedef enum
+{
+  Notify_Free		= 0x00U,
+  Notify_Wait		= 0x01U,
+  Notify_Ready	= 0x01U
+} Notify_Status;
+
 /* 列表项结构体 */
 typedef struct List_item
 {
@@ -43,24 +51,30 @@ struct List
 /* 任务结构体 TCB */
 typedef struct MiniTCB
 {
-	/* 任务栈栈顶指针 */
-	/* STM向下生长 */
+	/* 任务栈栈顶指针 	*/
+	/* STM向下生长 		*/
 	uint32_t *pxTopOfStack;
 
-	/* 任务栈及地址 */
+	/* 任务栈及地址 		*/
 	uint32_t *pxStackBase;
 
-	/* 任务调度优先级 */
+	/* 任务调度优先级 	*/
 	uint32_t uxPriority;
 	
-	/* 任务原始优先级 */
+	/* 任务原始优先级 	*/
 	uint32_t uxInitPriority;
 
-	/* 任务名称 */
+	/* 任务名称 				*/
 	char pcName[32];
 
-	/* 任务状态列表项 */
+	/* 任务状态列表项 	*/
 	ListItem_t StateListItem;
+	
+	/* 任务通知值 			*/
+	uint32_t 				NotifyValue;
+	
+	/* 任务通知状态 		*/
+	Notify_Status		NotifyState	;
 
 } MiniTCB_t;
 
@@ -69,9 +83,7 @@ typedef struct MiniMutex
 {
 	/* 互斥锁所有者 */
 	MiniTCB_t *Owner;
-	
-	/* 互斥锁等待列表 */
-	List_t WaitList;
+
 
 } MiniMutex_t;
 
@@ -84,10 +96,9 @@ typedef struct MiniSemaphore
 	/* 最大可用信号量 */	
 	uint16_t uxMaxCount;
 	
-	/* 信号量等待列表 */
-	List_t WaitList;
-	
 }MiniSemaphore_t;
+
+
 
 
 #endif
