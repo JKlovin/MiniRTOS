@@ -9,12 +9,13 @@ MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
 														const uint32_t uxStackDepth,
 														unsigned long uxPriority);
 void MiniRTOS_delay(uint32_t delay_time);
+void ListInit(List_t *List);
 void Task_StartScheduler(void);
 void Get_CurrentTCB(void);
 void List_ItemRemove(MiniTCB_t *TCB);
-void Task_AddList(MiniTCB_t *TCB,uint32_t pxValue,List_t *pxContainer);
-void Mini_EnterCritical(void);
-void Mini_ExitCritical(void);
+void Task_AddReadyList(MiniTCB_t *TCB);											
+void Mini_EnterCritical(void)	;
+void Mini_ExitCritical(void)	;
 
 
 #endif

@@ -29,6 +29,7 @@
 #include "minirtos.h"
 #include "minirtos_task.h"
 #include "minirtos_event.h"
+#include "minirtos_queue.h"
 
 /* USER CODE END Includes */
 
@@ -51,9 +52,11 @@
 /* USER CODE BEGIN PV */
 
 /* 定义互斥锁，信号量，通知任务体*/
-MiniMutex_t 		Task_MutexSignal_1;
+MiniMutex_t 		Task_MutexSignal_1		;
 MiniSemaphore_t Task_SemaphoreSignal_1;
-MiniTCB_t *Notify_TCB_1;
+MiniTCB_t 			*Notify_TCB_1					;
+MiniQueue_t 		Task_Queue_1					;
+
 
 extern volatile uint32_t System_Tick;
 
@@ -108,14 +111,19 @@ void LED3_Handle(void *arg)
 }
 void LED4_Handle(void *arg)
 {
+	static uint32_t value = 0;
+	
   while (1)
   {
+		value++;
+		Queue_Send(&Task_Queue_1,value);
+		
 		/* 互斥量资源保护 */
 		MutexSignal_Take(&Task_MutexSignal_1);
     printf("in Led_4_task\r\n");
 		MutexSignal_Release(&Task_MutexSignal_1);
 		
-    MiniRTOS_delay(5800);
+    MiniRTOS_delay(1000);
   }
 }
 void LED5_Handle(void *arg)
@@ -151,7 +159,22 @@ void LED6_Handle(void *arg)
     MiniRTOS_delay(11000);
   }
 }
+void LED7_Handle(void *arg)
+{
+	static uint32_t value = 0;
+  while (1)
+  {
+		value=Queue_Receive(&Task_Queue_1);
 
+		/* 互斥量资源保护 */
+		MutexSignal_Take(&Task_MutexSignal_1);
+    printf("in Led_7_task\r\n");
+		printf("Queue_Value : %d\r\n",value);
+		MutexSignal_Release(&Task_MutexSignal_1);
+
+    MiniRTOS_delay(6300);
+  }
+}
 /* USER CODE END 0 */
 
 /**
@@ -196,12 +219,16 @@ int main(void)
   MiniCreateTask(LED4_Handle, "Task_4",		256, 3 );
   MiniCreateTask(LED5_Handle, "Task_5",		256, 4 );
   MiniCreateTask(LED6_Handle, "Task_6",		256, 4 );
+  MiniCreateTask(LED7_Handle, "Task_7",		256, 2 );
 	
 	/* 互斥量初始化 */
 	Mutex_Init(&Task_MutexSignal_1);
 	
 	/* 二值信号量初始化 */
 	SemaphoreSignal_Init(&Task_SemaphoreSignal_1,1);
+	
+	/* 队列初始化 */
+	Queue_Init(&Task_Queue_1,5);
 	
 	/* 开启调度 */
   Task_StartScheduler();

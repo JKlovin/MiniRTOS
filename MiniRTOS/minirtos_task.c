@@ -4,36 +4,36 @@
 #include <stdio.h>
 #include <string.h>
 
+
+#define UXPRIORITY_MAX 5
+#define MIN_STACK_SIZE 32
+
 /* 系统定义项 */
-uint32_t 							primask						=0		;
-volatile uint32_t 		MiniRTOS_Running	=0		;
-volatile uint32_t 		System_Tick				=NULL	;
-MiniTCB_t *volatile 	CurrentTCB							;
+volatile uint32_t MiniRTOS_Running 	= 0;
+volatile uint32_t System_Tick		= 0;
+MiniTCB_t *volatile CurrentTCB;
 
 /* 就绪列表定义项 */
-List_t Task_ReadyList[5];
+List_t Task_ReadyList[UXPRIORITY_MAX];
 
 /* 阻塞列表定义项 */
-List_t Task_WaitList_1		;
-List_t Task_WaitList_2		;
-List_t *CurrentWaitList 	;
-List_t *OverflowWaitList	;
+List_t Task_WaitList_1	;
+List_t Task_WaitList_2	;
+List_t *CurrentWaitList	;
+List_t *OverflowWaitList;
+List_t Notify_WaitList	;
 
-static void ListInit(List_t *List);
+static volatile uint32_t uxCritical_Count	= 0;
+static volatile uint32_t uxSavedPrimask		= 0;
 static __asm void StartFirstTask(void);
 static void TaskInit_LRerror(void);
 static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time);
-
-extern List_t Mutex_WaitList;
-extern List_t SemaphoreSignal_WaitList;
-extern List_t Notify_WaitList;
-
 
 /* 系统初始化函数 */
 void MiniRTOS_Init(void)
 {
 	/* 就绪链表初始化 */
-	for (int i = 0; i < 5; i++)
+	for (int i = 0; i < UXPRIORITY_MAX; i++)
 	{
 		ListInit(&Task_ReadyList[i]);
 	}
@@ -41,33 +41,45 @@ void MiniRTOS_Init(void)
 	/* 阻塞链表初始化 */
 	ListInit(&Task_WaitList_1);
 	ListInit(&Task_WaitList_2);
-	
-	CurrentWaitList  = &Task_WaitList_1;
+
+	CurrentWaitList = &Task_WaitList_1;
 	OverflowWaitList = &Task_WaitList_2;
 	
-	/* 互斥锁链表初始化 */
-	ListInit(&Mutex_WaitList);
-	
-	/* 信号量链表初始化 */
-	ListInit(&SemaphoreSignal_WaitList);
-	
-	/* 任务通知初始化 */
+	/* 任务通知 */
 	ListInit(&Notify_WaitList);
 }
 
 /* 任务创建函数 */
-MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
-					const char *const pcName,
-					const uint32_t uxStackDepth,
-					unsigned long uxPriority)
+MiniTCB_t *MiniCreateTask(TaskFunction_t pxTaskCode,
+						  const char *const pcName,
+						  const uint32_t uxStackDepth,
+						  unsigned long uxPriority)
 {
 	MiniTCB_t *TCB;
 	uint32_t *pxStack;
 	static int IDLE_Flag = 0;
 
+	/* 创建TCB，申请TCB内存空间 */
 	TCB = (MiniTCB_t *)malloc(sizeof(MiniTCB_t));
 	if (TCB != NULL)
 	{
+		/* 任务函数指针检查 */
+		if (pxTaskCode == NULL)
+		{
+				printf("%s Task Code error\r\n", pcName);
+
+				return NULL;
+		}
+		
+		/* 任务栈深度检查 */
+		if (uxStackDepth < MIN_STACK_SIZE)
+		{
+				printf("%s Task StackDepth error\r\n", pcName);
+
+				return NULL;
+		}
+		
+		/* 创建任务堆栈，申请堆栈内存空间 */
 		pxStack = (uint32_t *)malloc(sizeof(uint32_t) * uxStackDepth);
 		if (pxStack != NULL)
 		{
@@ -89,6 +101,7 @@ MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
 			/* 栈指针字节对齐 */
 			TCB->pxTopOfStack = (uint32_t *)(((uint32_t)TCB->pxTopOfStack) & (~((uint32_t)0x0007)));
 
+			/* 构建初始任务堆栈 */
 			TCB->pxTopOfStack--;
 			*(TCB->pxTopOfStack) = 0x01000000; // xPSR
 			TCB->pxTopOfStack--;
@@ -123,17 +136,17 @@ MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
 			*(TCB->pxTopOfStack) = 0; // R4
 
 			/* 设置任务优先级 */
-			if (uxPriority >= 5)
+			if (uxPriority >= UXPRIORITY_MAX)
 			{
 				printf("%s Task Priority error\r\n", pcName);
-				
+
 				free(TCB);
 				free(pxStack);
 				return NULL;
 			}
-			
+
 			TCB->uxInitPriority = uxPriority;
-			TCB->uxPriority 		= uxPriority;
+			TCB->uxPriority = uxPriority;
 
 			/* 设置任务名称 */
 			if (pcName != NULL)
@@ -147,14 +160,14 @@ MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
 			}
 
 			/* 加入就绪列表 */
-			Task_AddList(TCB,TCB->uxPriority,&Task_ReadyList[TCB->uxPriority]);
-			
+			Task_AddReadyList(TCB);
+
 			/* 任务通知值初始化 */
-			TCB->NotifyValue=NULL;
-			TCB->NotifyState=Notify_Free;
-			
+			TCB->NotifyValue = NULL;
+			TCB->NotifyState = Notify_Idle;
+
 			printf("%s Task Init sucess\r\n", pcName);
-			
+
 			return TCB;
 		}
 		else
@@ -172,7 +185,7 @@ MiniTCB_t * MiniCreateTask(TaskFunction_t pxTaskCode,
 }
 
 /* 链表初始化 */
-static void ListInit(List_t *List)
+void ListInit(List_t *List)
 {
 	/* 列表初始化 */
 	List->NumberOfItems = 0;
@@ -189,9 +202,9 @@ void MiniRTOS_WakeUntil(uint32_t Systick_Now)
 {
 	List_t *List;
 	ListItem_t *Index;
-  MiniTCB_t *TCB;
-	
-		/* 检查阻塞任务是否到期 */
+	MiniTCB_t *TCB;
+
+	/* 检查阻塞任务是否到期 */
 	List = CurrentWaitList;
 
 	while (List->NumberOfItems > 0)
@@ -212,42 +225,41 @@ void MiniRTOS_WakeUntil(uint32_t Systick_Now)
 		List_ItemRemove(TCB);
 
 		/* 加入就绪链表 */
-		Task_AddList(TCB,TCB->uxPriority,&Task_ReadyList[TCB->uxPriority]);
+		Task_AddReadyList(TCB);
 	}
 }
 
 /* 添加至就绪链表 */
-void Task_AddList(MiniTCB_t *TCB,uint32_t pxValue,List_t *pxContainer)
+void Task_AddReadyList(MiniTCB_t *TCB)
 {
 	/* 列表节点归属哪一个TCB */
 	TCB->StateListItem.pxOwner = TCB;
 
 	/* 列表节点数值设置 */
-	TCB->StateListItem.pxValue = pxValue;
+	TCB->StateListItem.pxValue = TCB->uxPriority;
 
 	/* 列表节点归属哪一个列表 */
-	TCB->StateListItem.pxContainer = pxContainer;
+	TCB->StateListItem.pxContainer = &Task_ReadyList[TCB->uxPriority];
 
 	/* 如果列表中没有节点 */
-	if (pxContainer->NumberOfItems == 0)
+	if (Task_ReadyList[TCB->uxPriority].NumberOfItems == 0)
 	{
-		pxContainer->xListEnd.pxPrevious = &TCB->StateListItem;
-		pxContainer->xListEnd.pxNext = &TCB->StateListItem;
-		TCB->StateListItem.pxNext = &pxContainer->xListEnd;
-		TCB->StateListItem.pxPrevious = &pxContainer->xListEnd;
+		Task_ReadyList[TCB->uxPriority].xListEnd.pxPrevious = &TCB->StateListItem;
+		Task_ReadyList[TCB->uxPriority].xListEnd.pxNext = &TCB->StateListItem;
+		TCB->StateListItem.pxNext = &Task_ReadyList[TCB->uxPriority].xListEnd;
+		TCB->StateListItem.pxPrevious = &Task_ReadyList[TCB->uxPriority].xListEnd;
 
-		pxContainer->xIndex = &TCB->StateListItem;
-	}
-	else
+		Task_ReadyList[TCB->uxPriority].xIndex = &TCB->StateListItem;
+	}else/* 如果列表中有节点，尾插法 */
 	{
-		TCB->StateListItem.pxNext = &pxContainer->xListEnd;
-		TCB->StateListItem.pxPrevious = pxContainer->xListEnd.pxPrevious;
+		TCB->StateListItem.pxNext = &Task_ReadyList[TCB->uxPriority].xListEnd;
+		TCB->StateListItem.pxPrevious = Task_ReadyList[TCB->uxPriority].xListEnd.pxPrevious;
 		TCB->StateListItem.pxPrevious->pxNext = &TCB->StateListItem;
-		pxContainer->xListEnd.pxPrevious = &TCB->StateListItem;
+		Task_ReadyList[TCB->uxPriority].xListEnd.pxPrevious = &TCB->StateListItem;
 	}
 
 	/* 列表节点数增加 */
-	pxContainer->NumberOfItems++;
+	Task_ReadyList[TCB->uxPriority].NumberOfItems++;
 }
 
 /* 开启调度 */
@@ -257,17 +269,19 @@ void Task_StartScheduler(void)
 
 	/* Systick滴答定时器，时钟配置 */
 	HAL_SYSTICK_Config(72000000 / 1000);
-  System_Tick = 0;
-	
+
+	/* 初始化System_Tick */
+	System_Tick = 0;
+
 	Get_CurrentTCB();
 	/* 开启第一个任务 */
 	StartFirstTask();
-
 }
 
 /* 运行第一个任务 */
-static  __asm void StartFirstTask(void)
+static __asm void StartFirstTask(void)
 {
+	/* 8字节对齐 */
 	PRESERVE8
 
 	/* 从中断向量表中拿到MSP指针初始化值 */
@@ -277,7 +291,7 @@ static  __asm void StartFirstTask(void)
 
 	/* 重新初始化MSP指针 */
 	msr msp,r0
-	
+
 	/* 打开全局中断 */
 	cpsie i
 	cpsie f
@@ -285,6 +299,7 @@ static  __asm void StartFirstTask(void)
 	/* 内存同步 指令同步 */
 	dsb
 	isb
+
 	/* SVC异常*/
 	svc 0
 	nop
@@ -306,14 +321,15 @@ void Get_CurrentTCB(void)
 	int i;
 	List_t *List;
 
-  /* 唤醒当前时间之前已经到期的任务 */
-  MiniRTOS_WakeUntil(System_Tick);
+	/* 唤醒当前时间之前已经到期的任务 */
+	MiniRTOS_WakeUntil(System_Tick);
 
 	/* 查找最高优先级就绪任务 */
-	for (i = 4; i >= 0; i--)
+	for (i = (int)UXPRIORITY_MAX - 1; i >= 0; i--)
 	{
 		List = &Task_ReadyList[i];
 
+		/* 如果列表中没有节点 */
 		if (List->NumberOfItems == 0)
 		{
 			continue;
@@ -373,28 +389,29 @@ void List_ItemRemove(MiniTCB_t *TCB)
 
 /* RTOS系统延时函数 */
 void MiniRTOS_delay(uint32_t delay_time)
-{	
-	if(delay_time == 0U)
+{
+	/* 如果延时时间为0，立刻请求任务调度 */
+	if (delay_time == 0U)
 	{
-			SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
-			return;
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+		return;
 	}
-	
+
 	/* 进入临界区 */
 	Mini_EnterCritical();
-	
+
 	/* 从就绪链表删除 */
 	List_ItemRemove(CurrentTCB);
 
 	/* 加入阻塞链表 */
-	Task_AddWaitList(CurrentTCB,delay_time);
+	Task_AddWaitList(CurrentTCB, delay_time);
 
 	/* 请求任务调度 */
 	if (MiniRTOS_Running == 1)
 	{
 		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
 	}
-	
+
 	/* 退出临界区 */
 	Mini_ExitCritical();
 }
@@ -402,10 +419,11 @@ void MiniRTOS_delay(uint32_t delay_time)
 /* 添加延时链表 */
 static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
 {
-	ListItem_t	*Index  ;
-	ListItem_t 	*NewItem;
-	List_t 			*List   ;
+	ListItem_t *Index;
+	ListItem_t *NewItem;
+	List_t *List;
 
+	/* 获取任务对应的链表节点 */
 	NewItem = &TCB->StateListItem;
 
 	/* 设置唤醒时间 */
@@ -446,27 +464,45 @@ static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
 	/* 更新链表归属 */
 	NewItem->pxContainer = List;
 
+	/* 链表节点数量加一 */
 	List->NumberOfItems++;
 }
 
 /* 进入临界区 */
 void Mini_EnterCritical(void)
 {
+	uint32_t Primask;
+
 	/* 保存中断状态 */
-	primask = __get_PRIMASK();
+	Primask = __get_PRIMASK();
 
 	/* 进入临界区 */
 	__disable_irq();
-	
+
+	/* 首次进入临界区时保存中断状态 */
+	if (uxCritical_Count == 0)
+	{
+		uxSavedPrimask = Primask;
+	}
+
+	/* 临界区计数加一 */
+	uxCritical_Count++;
 }
 
 /* 退出临界区 */
 void Mini_ExitCritical(void)
 {
-	__DSB();
+	/* 临界区计数减一 */
+	if (uxCritical_Count > 0)
+	{
+		uxCritical_Count--;
+	}
 
-	/* 恢复原来的中断状态 */
-	__set_PRIMASK(primask);
-	__ISB();
-	
+	/* 退出临界区 */
+	if (uxCritical_Count == 0)
+	{
+		__DSB();
+		__set_PRIMASK(uxSavedPrimask);
+		__ISB();
+	}
 }

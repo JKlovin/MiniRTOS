@@ -9,9 +9,9 @@ typedef struct List List_t;
 /* 函数返回状态 */
 typedef enum
 {
-  Notify_Free		= 0x00U,
+  Notify_Idle		= 0x00U,
   Notify_Wait		= 0x01U,
-  Notify_Ready	= 0x01U
+  Notify_Ready	= 0x02U
 } Notify_Status;
 
 /* 列表项结构体 */
@@ -83,6 +83,8 @@ typedef struct MiniMutex
 	/* 互斥锁所有者 */
 	MiniTCB_t *Owner;
 
+	/* 互斥锁等待列表 */
+	List_t WaitList;
 
 } MiniMutex_t;
 
@@ -94,8 +96,37 @@ typedef struct MiniSemaphore
 
 	/* 最大可用信号量 */	
 	uint16_t uxMaxCount;
+
+	/* 信号量等待列表 */
+	List_t WaitList;
 	
 }MiniSemaphore_t;
+
+/* 队列 */
+typedef struct MiniQueue
+{
+	/* 当前队列长度 */
+	uint16_t uxCount		;
+	
+	/* 最大队列长度 */
+	uint16_t uxMaxCount 	;
+	
+	/* 队列头指针 */
+	uint32_t *head			;
+	
+	/* 队列指针 */
+	uint32_t *Queue			;
+	
+	/* 队列尾指针 */
+	uint32_t *tail			;
+
+	/* 等待队列数据列表 */
+	List_t xWaitingToReceive;
+
+	/* 等待队列槽位列表 */
+	List_t xWaitingToSend;
+	
+}MiniQueue_t;
 
 
 #endif
