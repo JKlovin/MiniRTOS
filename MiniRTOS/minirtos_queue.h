@@ -4,9 +4,10 @@
 #include "minirtos.h"
 
 
-void Queue_Init(MiniQueue_t *MiniQueue, uint16_t Queue_Length);
-void Queue_Send(MiniQueue_t *MiniQueue,uint32_t Queue_Value);
-uint32_t Queue_Receive(MiniQueue_t *MiniQueue);
+uint8_t Queue_Init(MiniQueue_t *MiniQueue, uint16_t Queue_Length, uint16_t ItemSize);
+uint8_t Queue_Send(MiniQueue_t *MiniQueue, const void *Data);
+uint8_t Queue_TrySend(MiniQueue_t *MiniQueue,const void *Data);
+uint8_t Queue_Receive(MiniQueue_t *MiniQueue, void *Data);
 
 
 #endif

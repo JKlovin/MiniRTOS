@@ -111,14 +111,17 @@ typedef struct MiniQueue
 	/* 最大队列长度 */
 	uint16_t uxMaxCount 	;
 	
+	/* 每个元素的字节数 */
+  uint16_t uxItemSize;
+	
 	/* 队列头指针 */
-	uint32_t *head			;
+	uint8_t *head			;
 	
 	/* 队列指针 */
-	uint32_t *Queue			;
+	uint8_t *Queue			;
 	
 	/* 队列尾指针 */
-	uint32_t *tail			;
+	uint8_t *tail			;
 
 	/* 等待队列数据列表 */
 	List_t xWaitingToReceive;
@@ -127,6 +130,13 @@ typedef struct MiniQueue
 	List_t xWaitingToSend;
 	
 }MiniQueue_t;
+
+
+
+__asm void StartFirstTask(void);
+void SysTick_Handler(void);
+void __asm PendSV_Handler(void);
+void __asm SVC_Handler(void);
 
 
 #endif

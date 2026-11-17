@@ -213,7 +213,6 @@ int main(void)
   printf("MiniRTOS Init OK!\r\n");
   MiniRTOS_Init();
 
-  MiniCreateTask(IDLE_Handle, "Idle_task",256, 0 );
 	MiniCreateTask(LED2_Handle, "Task_2",   256, 1 );
 	Notify_TCB_1=MiniCreateTask(LED3_Handle, "Task_3",   256, 2 );
   MiniCreateTask(LED4_Handle, "Task_4",		256, 3 );

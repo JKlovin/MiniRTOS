@@ -5,55 +5,91 @@
 #include "main.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 extern volatile uint32_t MiniRTOS_Running;
 extern MiniTCB_t *volatile CurrentTCB;
 
 /* 队列初始化 */
-void Queue_Init(MiniQueue_t *MiniQueue, uint16_t Queue_Length)
+uint8_t Queue_Init(MiniQueue_t *MiniQueue, uint16_t Queue_Length, uint16_t ItemSize)
 {
-	uint32_t *Queue;
+	uint8_t *Queue;
+	size_t 	QueueSize;
 
-	if(Queue_Length == NULL || Queue_Length == 0 || Queue_Length > UINT16_MAX)
+	/* 参数检查 */
+	if ((MiniQueue == NULL) || (Queue_Length == 0U) || (ItemSize == 0U))
 	{
-		printf("Queue Length Error\r\n");
-
-		return;
+		return 0U;
 	}
-
+	
+	/* 计算总缓冲区大小，防止乘法溢出 */
+	if ((size_t)Queue_Length > SIZE_MAX / (size_t)ItemSize)
+	{
+			return 0U;
+	}
+	
+	QueueSize = (size_t)Queue_Length * (size_t)ItemSize;
+	
 	/* 分配队列内存 */
-	Queue = (uint32_t *)malloc((Queue_Length) * sizeof(uint32_t));
+	Queue = (uint8_t *)malloc(QueueSize);
 
 	/* 队列内存申请失败 */
 	if (Queue == NULL)
 	{
 		printf("Queue Init Error\r\n");
 
-		return;
+		return 0U;
 	}
 
 	/* 进入临界区 */
 	Mini_EnterCritical();
-
+	
+	
+	/*
+	 * 初始化队列结构
+	 * 当前版本要求在启动调度器前调用，
+	 * 且不能对已初始化的队列重复初始化。
+	 */	
+	
 	/* 初始化队列 */
 	MiniQueue->Queue = Queue;
-	MiniQueue->head = MiniQueue->Queue;
-	MiniQueue->tail = MiniQueue->Queue;
+	MiniQueue->head = Queue;
+	MiniQueue->tail = Queue;
 	MiniQueue->uxCount = 0;
 	MiniQueue->uxMaxCount = Queue_Length;
+	MiniQueue->uxItemSize = ItemSize;
+	
 	ListInit(&MiniQueue->xWaitingToReceive);
 	ListInit(&MiniQueue->xWaitingToSend);
 
 	/* 退出临界区 */
 	Mini_ExitCritical();
-	return;
+	return 1U;
 }
 
 /* 发送队列 */
-void Queue_Send(MiniQueue_t *MiniQueue, uint32_t Queue_Value)
+uint8_t Queue_Send(MiniQueue_t *MiniQueue, const void *Data)
 {
 	MiniTCB_t *TCB1;
+	uint8_t *QueueEnd;
 
+	/* 参数检查 */
+	if ((MiniQueue == NULL) || (Data == NULL) ||
+			(MiniQueue->Queue == NULL) || (MiniQueue->uxItemSize == 0U) ||
+			(MiniQueue->uxMaxCount == 0U))
+	{
+			return 0U;
+	}
+	
+	/* 只能在调度器运行后的任务上下文调用 */
+	if ((MiniRTOS_Running == 0U) || (__get_IPSR() != 0U) || (__get_PRIMASK() != 0U))
+	{
+			return 0U;
+	}
+	
+	/* 计算队列缓冲区结束地址 */
+	QueueEnd = MiniQueue->Queue + (size_t)MiniQueue->uxMaxCount * MiniQueue->uxItemSize;
+	
 	while (1)
 	{
 		/* 进入临界区 */
@@ -73,25 +109,30 @@ void Queue_Send(MiniQueue_t *MiniQueue, uint32_t Queue_Value)
 
 			/* 退出临界区 */
 			Mini_ExitCritical();
+			
+			/* 被唤醒后重新判断队列 */
+			continue;
 		}
-		else
-			break;
+		
+		/* 队列有空闲位置，跳出循环 */
+		break;
 	}
-
+	
 	/* 将数据写入队列 */
-	*MiniQueue->head = Queue_Value;
-	/* 队列计数加一 */
+	memcpy(MiniQueue->head,Data,MiniQueue->uxItemSize);
+	/* 队列元素计数加一 */
 	MiniQueue->uxCount++;
-	/* 队列头指针加一 */
-	MiniQueue->head++;
+	/* 队列头指针前进一个元素 */
+	MiniQueue->head += MiniQueue->uxItemSize;
+	
 	/* 队列头指针越界，需要回绕 */
-	if (MiniQueue->head >= MiniQueue->Queue + MiniQueue->uxMaxCount)
+	if (MiniQueue->head >= QueueEnd)
 	{
 		MiniQueue->head = MiniQueue->Queue;
 	}
 
-	/* 判断等待接收队列的任务链表是否为空 */
-	if (MiniQueue->xWaitingToReceive.NumberOfItems != 0)
+	/* 唤醒等待接收的任务 */
+	if (MiniQueue->xWaitingToReceive.NumberOfItems > 0U)
 	{
 		/* 唤醒等待接收队列的任务 */
 		TCB1 = Task_WakeupEventWaitList(&MiniQueue->xWaitingToReceive);
@@ -111,14 +152,101 @@ void Queue_Send(MiniQueue_t *MiniQueue, uint32_t Queue_Value)
 
 	/* 退出临界区 */
 	Mini_ExitCritical();
+	
+	return 1U;
 }
 
-/* 接收队列 */
-uint32_t Queue_Receive(MiniQueue_t *MiniQueue)
+uint8_t Queue_TrySend(MiniQueue_t *MiniQueue,const void *Data)
 {
-	uint32_t Queue_Value;
 	MiniTCB_t *TCB1;
+	uint8_t *QueueEnd;
 
+	/* 参数检查 */
+	if ((MiniQueue == NULL) || (Data == NULL) ||
+			(MiniQueue->Queue == NULL) || (MiniQueue->uxItemSize == 0U) ||
+			(MiniQueue->uxMaxCount == 0U))
+	{
+			return 0U;
+	}
+	
+	/* 只能在调度器运行后的任务上下文调用 */
+	if ((MiniRTOS_Running == 0U) || (__get_IPSR() != 0U) || (__get_PRIMASK() != 0U))
+	{
+			return 0U;
+	}
+	
+	/* 计算队列缓冲区结束地址 */
+	QueueEnd = MiniQueue->Queue + (size_t)MiniQueue->uxMaxCount * MiniQueue->uxItemSize;
+
+	/* 进入临界区 */
+	Mini_EnterCritical();
+	/* 判断队列是否已满 */
+	if (MiniQueue->uxCount == MiniQueue->uxMaxCount)
+	{
+		Mini_ExitCritical();
+		
+		/* 不进入阻塞，立即返回 */
+		return 0U;
+	}
+	
+	/* 将数据写入队列 */
+	memcpy(MiniQueue->head,Data,MiniQueue->uxItemSize);
+	/* 队列元素计数加一 */
+	MiniQueue->uxCount++;
+	/* 队列头指针前进一个元素 */
+	MiniQueue->head += MiniQueue->uxItemSize;
+	
+	/* 队列头指针越界，需要回绕 */
+	if (MiniQueue->head >= QueueEnd)
+	{
+		MiniQueue->head = MiniQueue->Queue;
+	}
+
+	/* 唤醒等待接收的任务 */
+	if (MiniQueue->xWaitingToReceive.NumberOfItems > 0U)
+	{
+		/* 唤醒等待接收队列的任务 */
+		TCB1 = Task_WakeupEventWaitList(&MiniQueue->xWaitingToReceive);
+		if (TCB1 != NULL)
+		{
+			/* 判断任务优先级,抢占式调度 */
+			if (TCB1->uxPriority > CurrentTCB->uxPriority)
+			{
+				/* 请求任务调度 */
+				if (MiniRTOS_Running == 1)
+				{
+					SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+				}
+			}
+		}
+	}
+
+	/* 退出临界区 */
+	Mini_ExitCritical();
+	
+	return 1U;
+}
+
+
+
+/* 接收队列 */
+uint8_t Queue_Receive(MiniQueue_t *MiniQueue, void *Data)
+{
+	MiniTCB_t *TCB1;
+	uint8_t *QueueEnd;
+
+	if ((MiniQueue == NULL) || (Data == NULL) || (MiniQueue->Queue == NULL) || (MiniQueue->uxItemSize == 0U))
+	{
+			return 0U;
+	}
+	
+	if ((MiniRTOS_Running == 0U) || (__get_IPSR() != 0U) || (__get_PRIMASK() != 0U))
+	{
+			return 0U;
+	}	
+	
+	QueueEnd = MiniQueue->Queue + (size_t)MiniQueue->uxMaxCount * MiniQueue->uxItemSize;
+	
 	while (1)
 	{
 		/* 进入临界区 */
@@ -138,25 +266,29 @@ uint32_t Queue_Receive(MiniQueue_t *MiniQueue)
 
 			/* 退出临界区 */
 			Mini_ExitCritical();
+			
+			/* 被唤醒后重新检查 */
+			continue;
 		}
-		else
-			break;
+		
+		break;
 	}
 
-	/* 从队列中读取数据 */
-	Queue_Value = *MiniQueue->tail;
-	/* 队列计数减一 */
+  /* 将队列中的数据复制到接收缓冲区 */
+  memcpy(Data,MiniQueue->tail,MiniQueue->uxItemSize);
+	/* 队列元素计数减一 */
 	MiniQueue->uxCount--;
-	/* 队列尾指针加一 */
-	MiniQueue->tail++;
+	/* 队列尾指针前进一个元素 */
+	MiniQueue->tail += MiniQueue->uxItemSize;
+	
 	/* 队列尾指针越界，需要回绕 */
-	if (MiniQueue->tail >= MiniQueue->Queue + MiniQueue->uxMaxCount)
+	if (MiniQueue->tail >= QueueEnd)
 	{
 		MiniQueue->tail = MiniQueue->Queue;
 	}
 
 	/* 判断等待发送队列的任务链表是否为空 */
-	if (MiniQueue->xWaitingToSend.NumberOfItems != 0)
+	if (MiniQueue->xWaitingToSend.NumberOfItems > 0U)
 	{
 		/* 唤醒等待发送队列的任务 */
 		TCB1 = Task_WakeupEventWaitList(&MiniQueue->xWaitingToSend);
@@ -176,5 +308,5 @@ uint32_t Queue_Receive(MiniQueue_t *MiniQueue)
 
 	/* 退出临界区 */
 	Mini_ExitCritical();
-	return Queue_Value;
+	return 1U;
 }

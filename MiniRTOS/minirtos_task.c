@@ -25,9 +25,9 @@ List_t Notify_WaitList	;
 
 static volatile uint32_t uxCritical_Count	= 0;
 static volatile uint32_t uxSavedPrimask		= 0;
-static __asm void StartFirstTask(void);
 static void TaskInit_LRerror(void);
 static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time);
+static void IDLE_Handle(void *arg);
 
 /* 系统初始化函数 */
 void MiniRTOS_Init(void)
@@ -47,6 +47,19 @@ void MiniRTOS_Init(void)
 	
 	/* 任务通知 */
 	ListInit(&Notify_WaitList);
+	
+	/* 创建空闲任务 */
+	MiniCreateTask(IDLE_Handle, "Idle_task",64, 0 );
+	
+}
+
+/* 空闲任务 */
+static void IDLE_Handle(void *arg)
+{
+  while (1)
+  {
+		__WFI();
+  }
 }
 
 /* 任务创建函数 */
@@ -278,33 +291,7 @@ void Task_StartScheduler(void)
 	StartFirstTask();
 }
 
-/* 运行第一个任务 */
-static __asm void StartFirstTask(void)
-{
-	/* 8字节对齐 */
-	PRESERVE8
 
-	/* 从中断向量表中拿到MSP指针初始化值 */
-	ldr r0, = 0xE000ED08
-	ldr r0, [r0]
-	ldr r0, [r0]
-
-	/* 重新初始化MSP指针 */
-	msr msp,r0
-
-	/* 打开全局中断 */
-	cpsie i
-	cpsie f
-
-	/* 内存同步 指令同步 */
-	dsb
-	isb
-
-	/* SVC异常*/
-	svc 0
-	nop
-	nop
-}
 
 /* 任务初始化任务栈时，LR异常返回函数 */
 static void TaskInit_LRerror(void)
@@ -416,6 +403,71 @@ void MiniRTOS_delay(uint32_t delay_time)
 	Mini_ExitCritical();
 }
 
+/* 获取系统时间SystemTick */
+uint32_t MiniRTOS_GetTick(void)
+{
+	return System_Tick;
+}
+
+/* 固定周期任务延时 */
+uint8_t MiniRTOS_DelayUntil(uint32_t *PreviousWakeupTime,uint32_t Delay_Time)
+{
+	uint32_t WakeupTime;
+	uint32_t ElapsedTick;
+	uint32_t CurrentTick;
+	
+	/* 参数检查 */
+	if ((PreviousWakeupTime == NULL) || (Delay_Time == 0U))
+	{
+			return 2U;
+	}
+	
+	/* 只允许运行中的任务调用 */
+	if ((MiniRTOS_Running == 0U) || (__get_IPSR() != 0U) ||
+				(__get_PRIMASK() != 0U) || (CurrentTCB == NULL))
+	{
+			return 2U;
+	}
+	
+	/* 进入临界区 */
+	Mini_EnterCritical();
+	
+	/* 获取当前系统Tick */
+	CurrentTick = MiniRTOS_GetTick();
+
+	/* 计算已经过去的Tick */
+  ElapsedTick = CurrentTick - *PreviousWakeupTime;
+	
+	/* 更新下一次计划唤醒时刻 */
+	*PreviousWakeupTime += Delay_Time;
+	
+	/* 判断是否错过计划唤醒时刻 */
+	if (ElapsedTick >= Delay_Time)
+	{
+			Mini_ExitCritical();
+			return 1U;
+	}
+		
+  /* 计算还需要阻塞的Tick */
+  WakeupTime = Delay_Time - ElapsedTick;
+		
+	/* 当前任务移出就绪链表 */
+	List_ItemRemove(CurrentTCB);
+	
+	/* 加入延时阻塞链表 */
+	Task_AddWaitList(CurrentTCB,WakeupTime);
+	
+	if(MiniRTOS_Running == 1)
+	{
+		/* 设置 PendSV 挂起标志位,请求任务上下文切换 */
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+	}
+	
+	Mini_ExitCritical();
+	
+	return 0;
+}
+
 /* 添加延时链表 */
 static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
 {
@@ -506,3 +558,23 @@ void Mini_ExitCritical(void)
 		__ISB();
 	}
 }
+
+void MiniRTOS_TickHandler(void)
+{
+	System_Tick++;
+
+	/* 检测系统 Tick 溢出,交换链表指针 */
+	if(System_Tick == 0)
+	{
+		List_t *Temp = CurrentWaitList;
+		CurrentWaitList = OverflowWaitList;
+		OverflowWaitList = Temp;
+	}
+
+	if(MiniRTOS_Running == 1)
+	{
+		/* 设置 PendSV 挂起标志位,请求任务上下文切换 */
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+	}
+}
+
