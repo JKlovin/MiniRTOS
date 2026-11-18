@@ -26,7 +26,6 @@ List_t Notify_WaitList	;
 static volatile uint32_t uxCritical_Count	= 0;
 static volatile uint32_t uxSavedPrimask		= 0;
 static void TaskInit_LRerror(void);
-static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time);
 static void IDLE_Handle(void *arg);
 
 /* 系统初始化函数 */
@@ -172,6 +171,14 @@ MiniTCB_t *MiniCreateTask(TaskFunction_t pxTaskCode,
 				TCB->pcName[0] = '\0';
 			}
 
+			/* 初始化事件列表项 */
+			TCB->EventListItem.pxValue = uxPriority;
+			TCB->EventListItem.pxOwner = TCB;
+
+			TCB->EventListItem.pxContainer = NULL;
+			TCB->EventListItem.pxNext = NULL;
+			TCB->EventListItem.pxPrevious = NULL;
+			
 			/* 加入就绪列表 */
 			Task_AddReadyList(TCB);
 
@@ -234,7 +241,13 @@ void MiniRTOS_WakeUntil(uint32_t Systick_Now)
 		/* 先保存待唤醒任务的 TCB */
 		TCB = (MiniTCB_t *)Index->pxOwner;
 
-		/* 从阻塞链表中移除 */
+		/* 判断是否存在等待事件 */
+		if (TCB->EventListItem.pxContainer != NULL)
+		{
+				List_RemoveNode(&TCB->EventListItem);
+		}
+		
+		/* 从延时链表删除 */
 		List_ItemRemove(TCB);
 
 		/* 加入就绪链表 */
@@ -469,7 +482,7 @@ uint8_t MiniRTOS_DelayUntil(uint32_t *PreviousWakeupTime,uint32_t Delay_Time)
 }
 
 /* 添加延时链表 */
-static void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
+void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time)
 {
 	ListItem_t *Index;
 	ListItem_t *NewItem;
@@ -576,5 +589,43 @@ void MiniRTOS_TickHandler(void)
 		/* 设置 PendSV 挂起标志位,请求任务上下文切换 */
 		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
 	}
+}
+
+
+/* 将任务体移除当前链表 */
+void List_RemoveNode(ListItem_t *Item)
+{
+	List_t *List;
+
+	if (Item == NULL)
+	{
+			return;
+	}
+
+	/* 获取节点所属的链表 */
+	List = Item->pxContainer;
+	
+	if (List == NULL)
+	{
+			return;
+	}
+
+	/* 如果 Index 正好指向待删除节点 */
+	if (List->xIndex == Item)
+	{
+		List->xIndex = Item->pxNext;
+	}
+
+	/* 双向链表节点删除 */
+	Item->pxPrevious->pxNext = Item->pxNext;
+	Item->pxNext->pxPrevious = Item->pxPrevious;
+
+	/* 链表节点数量减一 */
+	List->NumberOfItems--;
+
+	/* 清除节点原有的链表关系 */
+	Item->pxNext = NULL;
+	Item->pxPrevious = NULL;
+	Item->pxContainer = NULL;
 }
 

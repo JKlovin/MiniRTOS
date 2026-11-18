@@ -19,6 +19,7 @@ void Task_AddReadyList(MiniTCB_t *TCB);
 void Mini_EnterCritical(void)	;
 void Mini_ExitCritical(void)	;
 void MiniRTOS_TickHandler(void);
-
+void Task_AddWaitList(MiniTCB_t *TCB, uint32_t delay_time);
+void List_RemoveNode(ListItem_t *Item);
 
 #endif

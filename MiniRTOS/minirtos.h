@@ -6,13 +6,25 @@
 typedef void (*TaskFunction_t)(void *arg);
 typedef struct List List_t;
 
-/* 函数返回状态 */
+/* 任务通知状态机 */
 typedef enum
 {
   Notify_Idle		= 0x00U,
   Notify_Wait		= 0x01U,
   Notify_Ready	= 0x02U
 } Notify_Status;
+
+/* 函数状态返回值 */
+typedef enum
+{
+    MiniRTOS_OK = 0U,
+    MiniRTOS_Timeout,
+    MiniRTOS_Error,
+    MiniRTOS_Invalid
+} MiniRTOS_State;
+
+/* 无限等待标识 */
+#define MINIRTOS_WAIT_FOREVER UINT32_MAX
 
 /* 列表项结构体 */
 typedef struct List_item
@@ -68,6 +80,9 @@ typedef struct MiniTCB
 
 	/* 任务状态列表项 	*/
 	ListItem_t StateListItem;
+	
+	/* 事件状态列表项	*/
+	ListItem_t EventListItem;
 	
 	/* 任务通知值 			*/
 	uint32_t 				NotifyValue;
