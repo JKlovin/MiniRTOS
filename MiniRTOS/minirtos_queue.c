@@ -207,6 +207,83 @@ MiniRTOS_State Queue_ReceiveTimeout(MiniQueue_t *MiniQueue, void *Data, uint32_t
 	}
 }
 
+/* 队列接收 */
+MiniRTOS_State Queue_ReceiveFromISR(MiniQueue_t *MiniQueue, void *Data, uint8_t *pxHigherPriorityTaskWoken)
+{
+	uint32_t SavedMask;
+	uint8_t *QueueEnd;
+	MiniTCB_t *WakeTCB;
+
+	if ((MiniQueue == NULL) || (Data == NULL) ||
+		(pxHigherPriorityTaskWoken == NULL))
+	{
+		return MiniRTOS_Invalid;
+	}
+
+	if ((MiniQueue->Queue == NULL) || (MiniQueue->uxMaxCount == 0U) ||
+		(MiniQueue->uxItemSize == 0U))
+	{
+		return MiniRTOS_Invalid;
+	}
+
+	if ((MiniRTOS_Running == 0U) || (CurrentTCB == NULL) ||
+		(__get_IPSR() < 16U))
+	{
+		return MiniRTOS_Invalid;
+	}
+
+	/* 获取队列缓冲区结束地址 */
+	QueueEnd = MiniQueue->Queue + (size_t)MiniQueue->uxMaxCount * MiniQueue->uxItemSize;
+
+	/* 进入临界区 */
+	SavedMask = Mini_EnterCriticalFromISR();
+
+	/* 队列为空 */
+	/* 立即返回 */
+	if (MiniQueue->uxCount == 0U)
+	{
+		Mini_ExitCriticalFromISR(SavedMask);
+		return MiniRTOS_Timeout;
+	}
+
+	/* 从队列读取数据 */
+	memcpy(Data, MiniQueue->tail, MiniQueue->uxItemSize);
+
+	/* 队列元素数量减一 */
+	MiniQueue->uxCount--;
+
+	/* 更新读指针 */
+	MiniQueue->tail += MiniQueue->uxItemSize;
+
+	/* 循环队列到达队尾 */
+	/* 读指针到达缓冲区末尾，重新指向队列起始位置 */
+	if (MiniQueue->tail >= QueueEnd)
+	{
+		MiniQueue->tail = MiniQueue->Queue;
+	}
+
+	/* 接收成功，唤醒等待发送的任务 */
+	if (MiniQueue->xWaitingToSend.NumberOfItems > 0U)
+	{
+		WakeTCB = Mini_EventWakeup(
+			&MiniQueue->xWaitingToSend);
+
+		/* 判断是否需要调度 */
+		if (WakeTCB != NULL)
+		{
+			if (WakeTCB->uxPriority > CurrentTCB->uxPriority)
+			{
+				*pxHigherPriorityTaskWoken = 1U;
+			}
+		}
+	}
+
+	/* 退出临界区 */
+	Mini_ExitCriticalFromISR(SavedMask);
+
+	return MiniRTOS_OK;
+}
+
 /* 带有超时等待的队列发送函数 */
 MiniRTOS_State Queue_SendTimeout(MiniQueue_t *MiniQueue, const void *Data, uint32_t WaitTicks)
 {
@@ -344,6 +421,84 @@ MiniRTOS_State Queue_SendTimeout(MiniQueue_t *MiniQueue, const void *Data, uint3
 		 * 不直接认为唤醒代表接收成功
 		 */
 	}
+}
+
+/* 队列发送 */
+MiniRTOS_State Queue_SendFromISR(MiniQueue_t *MiniQueue, const void *Data, uint8_t *pxHigherPriorityTaskWoken)
+{
+	MiniTCB_t *WakeTCB;
+	uint8_t *QueueEnd;
+	uint32_t SavedMask;
+
+	if ((MiniQueue == NULL) ||
+		(Data == NULL) ||
+		(pxHigherPriorityTaskWoken == NULL))
+	{
+		return MiniRTOS_Invalid;
+	}
+
+	if ((MiniQueue->Queue == NULL) ||
+		(MiniQueue->uxMaxCount == 0U) ||
+		(MiniQueue->uxItemSize == 0U))
+	{
+		return MiniRTOS_Invalid;
+	}
+
+	if ((MiniRTOS_Running == 0U) ||
+		(CurrentTCB == NULL) ||
+		(__get_IPSR() < 16U))
+	{
+		return MiniRTOS_Invalid;
+	}
+
+	QueueEnd = MiniQueue->Queue + (size_t)MiniQueue->uxMaxCount * MiniQueue->uxItemSize;
+
+	/* 进入临界区 */
+	SavedMask = Mini_EnterCriticalFromISR();
+
+	/* 队列已满 */
+	/* 直接返回 */
+	if (MiniQueue->uxCount >= MiniQueue->uxMaxCount)
+	{
+		Mini_ExitCriticalFromISR(SavedMask);
+		return MiniRTOS_Timeout;
+	}
+
+	/* 数据发送 */
+	memcpy(MiniQueue->head, Data, MiniQueue->uxItemSize);
+
+	MiniQueue->uxCount++;
+
+	MiniQueue->head += MiniQueue->uxItemSize;
+
+	/* 循环队列到达队尾 */
+	if (MiniQueue->head >= QueueEnd)
+	{
+		MiniQueue->head = MiniQueue->Queue;
+	}
+
+	/* 唤醒等待接收的任务 */
+	if (MiniQueue->xWaitingToReceive.NumberOfItems > 0U)
+	{
+		WakeTCB = Mini_EventWakeup(&MiniQueue->xWaitingToReceive);
+
+		/* 判断是否需要调度 */
+		if (WakeTCB != NULL)
+		{
+			if ((WakeTCB->uxPriority > CurrentTCB->uxPriority))
+			{
+				if (MiniRTOS_Running == 1)
+				{
+					*pxHigherPriorityTaskWoken = 1U;
+				}
+			}
+		}
+	}
+
+	/* 退出临界区 */
+	Mini_ExitCriticalFromISR(SavedMask);
+
+	return MiniRTOS_OK;
 }
 
 /* 无限阻塞的队列发送函数 */

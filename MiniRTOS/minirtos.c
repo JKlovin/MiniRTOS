@@ -182,7 +182,21 @@ void __asm PendSV_Handler(void)
 
 void SysTick_Handler(void)
 {
-	MiniRTOS_TickHandler();
+	System_Tick++;
+
+	/* 检测系统 Tick 溢出,交换链表指针 */
+	if(System_Tick == 0)
+	{
+		List_t *Temp = CurrentWaitList;
+		CurrentWaitList = OverflowWaitList;
+		OverflowWaitList = Temp;
+	}
+
+	if(MiniRTOS_Running == 1)
+	{
+		/* 设置 PendSV 挂起标志位,请求任务上下文切换 */
+		SCB->ICSR = SCB_ICSR_PENDSVSET_Msk;
+	}
 }
 
 
